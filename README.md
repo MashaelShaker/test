@@ -112,18 +112,20 @@ POST /api/webhook
 ### Request Format
 ```json
 {
-    "event": "product.updated",
-    "merchant": "your_merchant_id",
-    "data": {
-        "id": 123456,
-        "name": "Product Name",
-        "description": "Product description",
-        "price": {
-            "amount": 99.99
-        },
-        "quantity": 10,
-        "main_image": "https://example.com/image.jpg"
-    }
+  "event": "product.updated",
+  "merchant": "1029864349",
+  "created_at": "2026-02-19T12:00:00Z",
+  "data": {
+    "id": 123456,
+    "sku": "PRDO-123456",
+    "name": "Updated Product Name",
+    "description": "New description from Postman test",
+    "price": {
+      "amount": 199.99
+    },
+    "quantity": 50,
+    "main_image": "https://example.com/image.jpg"
+  }
 }
 ```
 ### How to Test the Webhook Locally
