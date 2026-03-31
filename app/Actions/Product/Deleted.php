@@ -3,6 +3,7 @@
 namespace App\Actions\Product;
 
 use App\Actions\BaseAction;
+use App\Models\Product;
 
 /**
  * @property string merchant example "1029864349"
@@ -13,7 +14,8 @@ use App\Actions\BaseAction;
  */
 class Deleted extends BaseAction
 {
-    public function handle()
-    {
-Product::where('id', $this->data['id'])->delete();    }
+public function handle()
+{
+    Product::where('id', $this->data['id'])->delete();
+}
 }

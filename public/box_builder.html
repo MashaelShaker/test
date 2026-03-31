@@ -753,7 +753,7 @@
                         <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة..."></textarea>
                     </div>
 
-                    <div class="checkbox-group">
+                    <!-- <div class="checkbox-group">
                         <input type="checkbox" id="package-active" class="checkbox-input" checked>
                         <label for="package-active" class="checkbox-label">الباقة نشطة</label>
                     </div>
@@ -761,7 +761,7 @@
                     <div class="checkbox-group">
                         <input type="checkbox" id="package-featured" class="checkbox-input">
                         <label for="package-featured" class="checkbox-label">باقة مميزة</label>
-                    </div>
+                    </div> -->
                 </div>
             </div>
 
@@ -1156,8 +1156,8 @@
                 name: packageName,
                 price: parseFloat(packagePrice),
                 elements: packageElements,
-                active: document.getElementById('package-active').checked,
-                featured: document.getElementById('package-featured').checked
+                // active: document.getElementById('package-active').checked,
+                // featured: document.getElementById('package-featured').checked
             };
 
             console.log('بيانات الباقة:', packageData);
