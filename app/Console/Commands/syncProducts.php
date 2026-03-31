@@ -51,8 +51,8 @@ class syncProducts extends Command
                             'image_url'      => $item['main_image'] ?? '',
                         ]
                     );
-                    $product->external_id = 'PRDO-' . $product->id . '-SALLA-' . $item['id'];
-                    $product->save();
+                    // $product->external_id = 'PRDO-' . $product->id . '-SALLA-' . $item['id']; // This line is commented out because the external_id column has been removed from the products table as per the latest migration. If you want to keep it in the future, you can uncomment this line and make sure to add the external_id column back to your products table.
+                    // $product->save();
 
                     $totalSynced++;
                 }

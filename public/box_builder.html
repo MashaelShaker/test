@@ -6,12 +6,12 @@
   <title>إنشاء باقة جديدة - سلة</title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.salla.network/fonts/sallaicons.css"/>
-    
+
     <style>
         /* ==================== أيقونات سلة ==================== */
-        .s-icon { 
-    font-family: 'sallaicons' !important; 
-    font-style: normal; 
+        .s-icon {
+    font-family: 'sallaicons' !important;
+    font-style: normal;
     vertical-align: middle;
 }
         .upload-area {
@@ -86,8 +86,8 @@
         }
 
         :root {
-    --primary-teal: #62D0B6;      
-    --accent-teal: #00b894;        
+    --primary-teal: #62D0B6;
+    --accent-teal: #00b894;
     --primary-teal-hover: #00363f;
     --primary-teal-light: #e6f7f4;
     --text-dark: #333333;
@@ -107,7 +107,7 @@
             margin: 0;
             padding: 0;
         }
-        
+
         body {
             font-family: 'Tajawal', sans-serif;
             background-color: var(--gray-50);
@@ -840,15 +840,15 @@
             if (!response.ok) throw new Error('فشل الاتصال بالسيرفر');
 
             const result = await response.json();
-            
+
             // 1. Access the 'data' array provided by Laravel's paginator
             const products = result.data.map(product => ({
-                id: product.id,
+                id: product.internal_id,
                 name: product.name,
                 price: parseFloat(product.price),
                 image: product.image_url || 'https://via.placeholder.com/150' // Use image_url
             }));
-            
+
             allProducts = [...allProducts, ...products];
 
             // 2. Check Laravel's 'meta' to see if there's a next page
@@ -906,7 +906,7 @@
             });
 
             const container = document.getElementById('elements-container');
-            
+
             if (container.querySelector('div[style*="text-align: center"]')) {
                 container.innerHTML = '';
             }
@@ -957,7 +957,7 @@
             // تصفية المنتجات حسب نص البحث
             let productsToShow = availableProducts;
             if (filterText) {
-                productsToShow = availableProducts.filter(p => 
+                productsToShow = availableProducts.filter(p =>
                     p.name.includes(filterText)
                 );
             }
@@ -992,7 +992,7 @@
         function updatePreview() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-            
+
             document.getElementById('preview-title').textContent = packageName;
             document.getElementById('preview-price').textContent = `﷼ ${parseFloat(packagePrice).toFixed(2)}`;
 
@@ -1005,7 +1005,7 @@
             }
 
             const previewElements = document.getElementById('preview-elements');
-            
+
             if (packageElements.length === 0) {
                 previewElements.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
@@ -1051,10 +1051,10 @@
             }
 
             packageElements[elementIndex].products.push(product);
-            
+
             const element = packageElements[elementIndex];
             const elementId = element.id;
-            
+
             updateProductsList(elementId, elementIndex);
             updatePreview();
         }
@@ -1062,7 +1062,7 @@
         function updateProductsList(elementId, elementIndex) {
             const element = packageElements[elementIndex];
             const container = document.getElementById(`products-list-${elementId}`);
-            
+
             if (element.products.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 13px;">
@@ -1161,7 +1161,7 @@
             };
 
             console.log('بيانات الباقة:', packageData);
-            
+
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
@@ -1179,7 +1179,7 @@
         function previewPackage() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-            
+
             let previewHTML = `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
