@@ -17,6 +17,7 @@ class Created extends BaseAction
 {
     public function handle()
     {
+        //use same logic you have in app/Actions/Product/Updated.php
         return Product::updateOrCreate(
             ['salla_product_id' => $this->data['id']],
             [

@@ -29,6 +29,10 @@ class syncProducts extends Command
     {
         $this->info("Starting sync...");
         // Get token from .env
+        /*
+         * here we need to loop throw all our registered users you can get the apiKey for each user from  $user->token->access_token
+         * also make sure you add store_id in products table where products.store_id=$user->token->merchant
+         */ 
         $token = env('SALLA_API_KEY');
         $totalSynced = 0;
 

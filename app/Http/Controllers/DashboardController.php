@@ -31,6 +31,7 @@ class DashboardController extends Controller
      */
     public function __invoke()
     {
+        // here we want to show the box builder by   return view('dashboard')
         $products = [];
         $store = null;
 
