@@ -1,4 +1,3 @@
-<!-- this should be moved to dashboard.blade.php file-->
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -7,12 +6,12 @@
   <title>إنشاء باقة جديدة - سلة</title>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdn.salla.network/fonts/sallaicons.css"/>
-
+    
     <style>
         /* ==================== أيقونات سلة ==================== */
-        .s-icon {
-    font-family: 'sallaicons' !important;
-    font-style: normal;
+        .s-icon { 
+    font-family: 'sallaicons' !important; 
+    font-style: normal; 
     vertical-align: middle;
 }
         .upload-area {
@@ -87,8 +86,8 @@
         }
 
         :root {
-    --primary-teal: #62D0B6;
-    --accent-teal: #00b894;
+    --primary-teal: #62D0B6;      
+    --accent-teal: #00b894;        
     --primary-teal-hover: #00363f;
     --primary-teal-light: #e6f7f4;
     --text-dark: #333333;
@@ -108,7 +107,7 @@
             margin: 0;
             padding: 0;
         }
-
+        
         body {
             font-family: 'Tajawal', sans-serif;
             background-color: var(--gray-50);
@@ -754,7 +753,7 @@
                         <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة..."></textarea>
                     </div>
 
-                    <!-- <div class="checkbox-group">
+                    <div class="checkbox-group">
                         <input type="checkbox" id="package-active" class="checkbox-input" checked>
                         <label for="package-active" class="checkbox-label">الباقة نشطة</label>
                     </div>
@@ -762,7 +761,7 @@
                     <div class="checkbox-group">
                         <input type="checkbox" id="package-featured" class="checkbox-input">
                         <label for="package-featured" class="checkbox-label">باقة مميزة</label>
-                    </div> -->
+                    </div>
                 </div>
             </div>
 
@@ -841,7 +840,7 @@
             if (!response.ok) throw new Error('فشل الاتصال بالسيرفر');
 
             const result = await response.json();
-
+            
             // 1. Access the 'data' array provided by Laravel's paginator
             const products = result.data.map(product => ({
                 id: product.internal_id,
@@ -849,7 +848,7 @@
                 price: parseFloat(product.price),
                 image: product.image_url || 'https://via.placeholder.com/150' // Use image_url
             }));
-
+            
             allProducts = [...allProducts, ...products];
 
             // 2. Check Laravel's 'meta' to see if there's a next page
@@ -907,7 +906,7 @@
             });
 
             const container = document.getElementById('elements-container');
-
+            
             if (container.querySelector('div[style*="text-align: center"]')) {
                 container.innerHTML = '';
             }
@@ -958,7 +957,7 @@
             // تصفية المنتجات حسب نص البحث
             let productsToShow = availableProducts;
             if (filterText) {
-                productsToShow = availableProducts.filter(p =>
+                productsToShow = availableProducts.filter(p => 
                     p.name.includes(filterText)
                 );
             }
@@ -993,7 +992,7 @@
         function updatePreview() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-
+            
             document.getElementById('preview-title').textContent = packageName;
             document.getElementById('preview-price').textContent = `﷼ ${parseFloat(packagePrice).toFixed(2)}`;
 
@@ -1006,7 +1005,7 @@
             }
 
             const previewElements = document.getElementById('preview-elements');
-
+            
             if (packageElements.length === 0) {
                 previewElements.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
@@ -1052,10 +1051,10 @@
             }
 
             packageElements[elementIndex].products.push(product);
-
+            
             const element = packageElements[elementIndex];
             const elementId = element.id;
-
+            
             updateProductsList(elementId, elementIndex);
             updatePreview();
         }
@@ -1063,7 +1062,7 @@
         function updateProductsList(elementId, elementIndex) {
             const element = packageElements[elementIndex];
             const container = document.getElementById(`products-list-${elementId}`);
-
+            
             if (element.products.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 13px;">
@@ -1127,60 +1126,57 @@
                 body.classList.add('collapsed');
             }
         }
+async function savePackage() {
+    const packageName = document.getElementById('package-name').value;
+    const packagePrice = document.getElementById('package-price').value;
 
-        function savePackage() {
-            const packageName = document.getElementById('package-name').value;
-            const packagePrice = document.getElementById('package-price').value;
+    if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
+    if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
+    if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
+    if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
 
-            if (!packageName) {
-                alert('يرجى إدخال اسم الباقة');
-                return;
-            }
+    const payload = {
+        name: packageName,
+        price: parseFloat(packagePrice),
+        description: document.getElementById('package-description').value,
+        image: packageImageUrl,
+        elements: packageElements.map(el => ({
+            name: el.name,
+            products: el.products.map(p => ({ id: p.id }))
+        }))
+    };
 
-            if (!packagePrice || parseFloat(packagePrice) <= 0) {
-                alert('يرجى إدخال سعر صحيح للباقة');
-                return;
-            }
+    try {
+        const btn = event.target;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
 
-            if (packageElements.length === 0) {
-                alert('يرجى إضافة عنصر واحد على الأقل للباقة');
-                return;
-            }
+        const response = await fetch('http://127.0.0.1:8000/api/boxes', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-            const hasEmptyElement = packageElements.some(e => e.products.length === 0);
-            if (hasEmptyElement) {
-                alert('يوجد عناصر بدون منتجات. يرجى إضافة منتجات لجميع العناصر');
-                return;
-            }
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'فشل الحفظ');
 
-            const packageData = {
-                name: packageName,
-                price: parseFloat(packagePrice),
-                elements: packageElements,
-                // active: document.getElementById('package-active').checked,
-                // featured: document.getElementById('package-featured').checked
-            };
+        btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
+        setTimeout(() => {
+            btn.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
+            btn.disabled = false;
+        }, 2000);
 
-            console.log('بيانات الباقة:', packageData);
-
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
-            btn.disabled = true;
-
-            setTimeout(() => {
-                btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
-                setTimeout(() => {
-                    btn.innerHTML = originalText;
-                    btn.disabled = false;
-                }, 2000);
-            }, 1500);
-        }
+    } catch (error) {
+        alert(`خطأ: ${error.message}`);
+        event.target.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
+        event.target.disabled = false;
+    }
+}
 
         function previewPackage() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-
+            
             let previewHTML = `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
