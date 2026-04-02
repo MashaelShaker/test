@@ -5,6 +5,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreBoxRequest;
 use App\Models\Box;
 use App\Models\BoxElement;
+use Illuminate\Support\Facades\Storage;
 
 class BoxController extends Controller
 {
@@ -13,11 +14,20 @@ class BoxController extends Controller
         try {
             $validated = $request->validated();
 
+            $imageUrl = null;
+            if (!empty($validated['image'])) {
+                $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $validated['image']);
+                $imageData = base64_decode($imageData);
+                $filename = 'boxes/' . uniqid() . '.jpg';
+                Storage::disk('public')->put($filename, $imageData);
+                $imageUrl = Storage::url($filename);
+            }
+
             $box = Box::create([
                 'name'        => $validated['name'],
                 'price'       => $validated['price'],
                 'description' => $validated['description'] ?? null,
-                'image_url'   => $validated['image_url'] ?? null,
+                'image_url'   => $imageUrl,
             ]);
 
             foreach ($validated['elements'] as $elementData) {
