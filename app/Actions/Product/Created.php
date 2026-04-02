@@ -16,18 +16,21 @@ use App\Models\Product;
 class Created extends BaseAction
 {
     public function handle()
-    {
-        //use same logic you have in app/Actions/Product/Updated.php
-        return Product::updateOrCreate(
-            ['salla_product_id' => $this->data['id']],
-            [
-                'external_id'    => $this->data['sku'] ?? null,
-                'name'           => $this->data['name'] ?? '',
-                'description'    => $this->data['description'] ?? '',
-                'price'          => $this->data['price']['amount'] ?? 0,
-                'stock_quantity' => $this->data['quantity'] ?? 0,
-                'image_url'      => $this->data['main_image'] ?? null,
-            ]
-        );
-    }
+{
+    $product = Product::updateOrCreate(
+        ['salla_product_id' => $this->data['id']],
+        [
+            'name'           => $this->data['name'] ?? '',
+            'description'    => $this->data['description'] ?? '',
+            'price'          => $this->data['price']['amount'] ?? 0,
+            'stock_quantity' => $this->data['quantity'] ?? 0,
+            'image_url'      => $this->data['main_image'] ?? '',
+        ]
+    );
+
+    $product->external_id = 'PRDO-' . $product->id . '-SALLA-' . $this->data['id'];
+    $product->save();
+
+    return $product;
+}
 }

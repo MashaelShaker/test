@@ -1135,16 +1135,16 @@ async function savePackage() {
     if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
     if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
 
-    const payload = {
-        name: packageName,
-        price: parseFloat(packagePrice),
-        description: document.getElementById('package-description').value,
-        image: packageImageUrl,
-        elements: packageElements.map(el => ({
-            name: el.name,
-            products: el.products.map(p => ({ id: p.id }))
-        }))
-    };
+   const payload = {
+    name: packageName,
+    price: parseFloat(packagePrice),
+    description: document.getElementById('package-description').value,
+    image: packageImageUrl, // add this line
+    elements: packageElements.map((el, index) => ({
+        name: el.name || `العنصر ${index + 1}`,
+        products: el.products.map(p => ({ id: p.id }))
+    }))
+};
 
     try {
         const btn = event.target;
