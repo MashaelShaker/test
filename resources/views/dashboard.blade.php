@@ -1,5 +1,717 @@
 @extends('layouts.app')
+@section('heder-overrides')
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <title>إنشاء باقة جديدة - سلة</title>
+        <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.salla.network/fonts/sallaicons.css"/>
 
+        <style>
+            /* ==================== أيقونات سلة ==================== */
+            .s-icon {
+                font-family: 'sallaicons' !important;
+                font-style: normal;
+                vertical-align: middle;
+            }
+            .upload-area {
+                border: 2px dashed var(--border-color);
+                border-radius: 8px;
+                padding: 40px 20px;
+                text-align: center;
+                cursor: pointer;
+                transition: all 0.2s;
+                background: var(--gray-50);
+                margin-bottom: 12px;
+            }
+
+            .upload-area:hover {
+                border-color: var(--primary-teal);
+                background: var(--primary-teal-light);
+            }
+
+            .upload-area.has-file {
+                border-color: var(--primary-teal);
+                background: var(--primary-teal-light);
+                padding: 0;
+                height: 300px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                position: relative;
+            }
+
+            .upload-area.has-file img {
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+            }
+
+            .upload-area.has-file .upload-content {
+                display: none;
+            }
+
+            .upload-icon {
+                font-size: 48px;
+                color: var(--text-light);
+                margin-bottom: 12px;
+            }
+
+            .upload-area h4 {
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--text-dark);
+                margin-bottom: 4px;
+            }
+
+            .upload-area p {
+                font-size: 12px;
+                color: var(--text-light);
+                margin: 0;
+            }
+
+            .preview-package-image {
+                width: 100%;
+                height: 200px;
+                border-radius: 8px;
+                object-fit: cover;
+                margin-bottom: 16px;
+                background: var(--gray-100);
+                display: none;
+            }
+
+            .preview-package-image.visible {
+                display: block;
+            }
+
+            :root {
+                --primary-teal: #62D0B6;
+                --accent-teal: #00b894;
+                --primary-teal-hover: #00363f;
+                --primary-teal-light: #e6f7f4;
+                --text-dark: #333333;
+                --text-medium: #666666;
+                --text-light: #999999;
+                --gray-50: #fcfcfc;
+                --gray-100: #f5f5f5;
+                --border-color: #eeeeee;
+                --white: #ffffff;
+                --red: #ff5f5f;
+                --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+            }
+
+            /* ==================== إعادة تعيين ==================== */
+            * {
+                box-sizing: border-box;
+                margin: 0;
+                padding: 0;
+            }
+
+            body {
+                font-family: 'Tajawal', sans-serif;
+                background-color: var(--gray-50);
+                color: var(--text-dark);
+                font-size: 14px;
+                line-height: 1.6;
+                padding-bottom: 100px;
+            }
+
+            /* ==================== التخطيط الأساسي ==================== */
+            .container {
+                display: flex;
+                max-width: 1400px;
+                margin: 0 auto;
+                gap: 24px;
+                padding: 24px;
+                align-items: flex-start;
+            }
+
+            .main-content {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .sidebar {
+                width: 380px;
+                flex-shrink: 0;
+                position: sticky;
+                top: 24px;
+            }
+
+            /* ==================== البطاقات ==================== */
+            .card {
+                background: var(--white);
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+                margin-bottom: 16px;
+                overflow: hidden;
+            }
+
+            .card-header {
+                padding: 16px 20px;
+                border-bottom: 1px solid var(--border-color);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                background: var(--white);
+            }
+
+            .card-header h3 {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 700;
+                color: var(--text-dark);
+            }
+
+            .card-body {
+                padding: 20px;
+            }
+
+            /* ==================== معاينة الباقة ==================== */
+            .preview-card {
+                background: var(--white);
+                border-radius: 8px;
+                border: 1px solid var(--border-color);
+                padding: 20px;
+            }
+
+            .preview-header {
+                text-align: center;
+                padding-bottom: 16px;
+                border-bottom: 1px solid var(--border-color);
+                margin-bottom: 16px;
+            }
+
+            .preview-label {
+                font-size: 12px;
+                color: var(--text-light);
+                margin-bottom: 4px;
+            }
+
+            .preview-title {
+                font-size: 18px;
+                font-weight: 700;
+                color: var(--text-dark);
+                margin-bottom: 8px;
+                min-height: 27px;
+            }
+
+            .preview-price {
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--primary-teal);
+                min-height: 30px;
+            }
+
+            .preview-elements {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .preview-element {
+                background: var(--gray-50);
+                border-radius: 6px;
+                padding: 12px;
+                border: 1px solid var(--border-color);
+            }
+
+            .preview-element-header {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-dark);
+                margin-bottom: 8px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .preview-element-number {
+                background: var(--primary-teal);
+                color: var(--white);
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 11px;
+                font-weight: 700;
+            }
+
+            .preview-products {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .preview-product {
+                font-size: 12px;
+                color: var(--text-medium);
+                padding: 6px 10px;
+                background: var(--white);
+                border-radius: 4px;
+                border: 1px solid var(--border-color);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .preview-product-image {
+                width: 32px;
+                height: 32px;
+                border-radius: 4px;
+                object-fit: cover;
+                background: var(--gray-100);
+            }
+
+            .preview-product-details {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .preview-product-name {
+                font-weight: 500;
+                color: var(--text-dark);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            .preview-product-price {
+                font-size: 11px;
+                color: var(--primary-teal);
+            }
+
+            /* ==================== حقول الإدخال ==================== */
+            .form-group {
+                margin-bottom: 16px;
+            }
+
+            .form-label {
+                display: block;
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-dark);
+                margin-bottom: 6px;
+            }
+
+            .form-input,
+            .form-textarea {
+                width: 100%;
+                padding: 10px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 14px;
+                transition: all 0.2s;
+                background: var(--white);
+            }
+
+            .form-input:focus,
+            .form-textarea:focus {
+                outline: none;
+                border-color: var(--primary-teal);
+                box-shadow: 0 0 0 3px var(--primary-teal-light);
+            }
+
+            .form-textarea {
+                resize: vertical;
+                min-height: 80px;
+            }
+
+            .checkbox-group {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 12px;
+            }
+
+            .checkbox-input {
+                width: 18px;
+                height: 18px;
+                accent-color: var(--primary-teal);
+                cursor: pointer;
+            }
+
+            .checkbox-label {
+                font-size: 13px;
+                color: var(--text-dark);
+                cursor: pointer;
+            }
+
+            /* ==================== الأزرار ==================== */
+            .btn {
+                padding: 10px 20px;
+                border: none;
+                border-radius: 6px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                justify-content: center;
+            }
+
+            .btn-primary {
+                background: var(--primary-teal);
+                color: var(--white);
+            }
+
+            .btn-primary:hover {
+                background: var(--primary-teal-hover);
+            }
+
+            .btn-secondary {
+                background: var(--gray-100);
+                color: var(--text-dark);
+            }
+
+            .btn-secondary:hover {
+                background: var(--gray-50);
+                border-color: var(--border-color);
+            }
+
+            .btn-danger {
+                background: var(--red);
+                color: var(--white);
+            }
+
+            .btn-full {
+                width: 100%;
+            }
+
+            .btn:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+
+            /* ==================== بطاقة العنصر ==================== */
+            .element-card {
+                background: var(--white);
+                border: 1px solid var(--border-color);
+                border-radius: 8px;
+                margin-bottom: 16px;
+                overflow: hidden;
+            }
+
+            .element-header {
+                background: var(--gray-50);
+                padding: 14px 16px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                cursor: pointer;
+                user-select: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .element-header:hover {
+                background: var(--gray-100);
+            }
+
+            .element-number {
+                background: var(--primary-teal);
+                color: var(--white);
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 13px;
+                font-weight: 700;
+                flex-shrink: 0;
+            }
+
+            .element-title {
+                flex: 1;
+                font-size: 14px;
+                font-weight: 600;
+                color: var(--text-dark);
+            }
+
+            .element-actions {
+                display: flex;
+                gap: 8px;
+                align-items: center;
+            }
+
+            .element-collapse-icon {
+                font-size: 18px;
+                color: var(--text-light);
+                transition: transform 0.2s;
+            }
+
+            .element-header.collapsed .element-collapse-icon {
+                transform: rotate(-90deg);
+            }
+
+            .element-body {
+                padding: 16px;
+                max-height: 1000px;
+                overflow: hidden;
+                transition: all 0.3s ease;
+            }
+
+            .element-body.collapsed {
+                max-height: 0;
+                padding: 0 16px;
+            }
+
+            .element-name-input {
+                width: 100%;
+                padding: 10px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 13px;
+                margin-bottom: 16px;
+            }
+
+            .element-name-input:focus {
+                outline: none;
+                border-color: var(--primary-teal);
+                box-shadow: 0 0 0 3px var(--primary-teal-light);
+            }
+
+            /* ==================== قائمة المنتجات ==================== */
+            .products-list {
+                margin-bottom: 16px;
+            }
+
+            .product-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 12px;
+                background: var(--gray-50);
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                margin-bottom: 8px;
+            }
+
+            .product-image {
+                width: 48px;
+                height: 48px;
+                border-radius: 6px;
+                object-fit: cover;
+                background: var(--gray-100);
+                flex-shrink: 0;
+            }
+
+            .product-details {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .product-name {
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-dark);
+                margin-bottom: 2px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .product-price {
+                font-size: 12px;
+                color: var(--primary-teal);
+                font-weight: 600;
+            }
+
+            .product-remove {
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                background: var(--red);
+                color: var(--white);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                font-size: 16px;
+                flex-shrink: 0;
+                transition: all 0.2s;
+            }
+
+            .product-remove:hover {
+                transform: scale(1.1);
+            }
+
+            /* ==================== محدد المنتج ==================== */
+            .product-selector {
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                overflow: hidden;
+                background: var(--white);
+            }
+
+            .selector-header {
+                padding: 12px;
+                background: var(--gray-50);
+                border-bottom: 1px solid var(--border-color);
+                display: flex;
+                align-items: center;
+                gap: 8px;
+            }
+
+            .selector-header .s-icon {
+                font-size: 16px;
+                color: var(--text-light);
+            }
+
+            .selector-search {
+                flex: 1;
+                padding: 8px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 4px;
+                font-family: 'Tajawal', sans-serif;
+                font-size: 13px;
+            }
+
+            .selector-search:focus {
+                outline: none;
+                border-color: var(--primary-teal);
+            }
+
+            .selector-list {
+                max-height: 300px;
+                overflow-y: auto;
+            }
+
+            .selector-item {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                padding: 10px 12px;
+                cursor: pointer;
+                border-bottom: 1px solid var(--border-color);
+                transition: background 0.2s;
+            }
+
+            .selector-item:hover {
+                background: var(--gray-50);
+            }
+
+            .selector-item:last-child {
+                border-bottom: none;
+            }
+
+            .selector-item-image {
+                width: 40px;
+                height: 40px;
+                border-radius: 4px;
+                object-fit: cover;
+                background: var(--gray-100);
+            }
+
+            .selector-item-details {
+                flex: 1;
+                min-width: 0;
+            }
+
+            .selector-item-name {
+                font-size: 13px;
+                font-weight: 500;
+                color: var(--text-dark);
+                margin-bottom: 2px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .selector-item-price {
+                font-size: 12px;
+                color: var(--primary-teal);
+                font-weight: 600;
+            }
+
+            .selector-item-add {
+                padding: 6px 12px;
+                background: var(--primary-teal);
+                color: var(--white);
+                border: none;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .selector-item-add:hover {
+                background: var(--primary-teal-hover);
+            }
+
+            /* ==================== التذييل الثابت ==================== */
+            .fixed-footer {
+                position: fixed;
+                bottom: 0;
+                left: 0;
+                right: 0;
+                background: var(--white);
+                border-top: 1px solid var(--border-color);
+                padding: 16px 24px;
+                display: flex;
+                justify-content: center;
+                gap: 12px;
+                box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
+                z-index: 1000;
+            }
+
+            .fixed-footer .btn {
+                min-width: 160px;
+            }
+
+            /* ==================== استجابة الموبايل ==================== */
+            @media (max-width: 1024px) {
+                .container {
+                    flex-direction: column;
+                }
+
+                .sidebar {
+                    width: 100%;
+                    position: static;
+                    order: -1;
+                }
+
+                .fixed-footer {
+                    flex-direction: column;
+                    gap: 8px;
+                }
+
+                .fixed-footer .btn {
+                    width: 100%;
+                }
+            }
+
+            @media (max-width: 640px) {
+                .container {
+                    padding: 16px;
+                }
+
+                .card-body {
+                    padding: 16px;
+                }
+
+                .element-header {
+                    padding: 12px;
+                }
+
+                .element-body {
+                    padding: 12px;
+                }
+
+                .preview-card {
+                    padding: 16px;
+                }
+            }
+        </style>
+@endsection
 @section('content')
 @if (!env('DASHBOARD_BYPASS_AUTH', false) && !optional(auth()->user())->token)
         <div class="py-12">
@@ -23,723 +735,8 @@
             </div>
         </div>
     @else
-   
-<html lang="ar" dir="rtl">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>إنشاء باقة جديدة - سلة</title>
-<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://cdn.salla.network/fonts/sallaicons.css"/>
-    
-    <style>
-        /* ==================== أيقونات سلة ==================== */
-        .s-icon { 
-    font-family: 'sallaicons' !important; 
-    font-style: normal; 
-    vertical-align: middle;
-}
-        .upload-area {
-            border: 2px dashed var(--border-color);
-            border-radius: 8px;
-            padding: 40px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.2s;
-            background: var(--gray-50);
-            margin-bottom: 12px;
-        }
 
-        .upload-area:hover {
-            border-color: var(--primary-teal);
-            background: var(--primary-teal-light);
-        }
-
-        .upload-area.has-file {
-            border-color: var(--primary-teal);
-            background: var(--primary-teal-light);
-            padding: 0;
-            height: 300px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            position: relative;
-        }
-
-        .upload-area.has-file img {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-
-        .upload-area.has-file .upload-content {
-            display: none;
-        }
-
-        .upload-icon {
-            font-size: 48px;
-            color: var(--text-light);
-            margin-bottom: 12px;
-        }
-
-        .upload-area h4 {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 4px;
-        }
-
-        .upload-area p {
-            font-size: 12px;
-            color: var(--text-light);
-            margin: 0;
-        }
-
-        .preview-package-image {
-            width: 100%;
-            height: 200px;
-            border-radius: 8px;
-            object-fit: cover;
-            margin-bottom: 16px;
-            background: var(--gray-100);
-            display: none;
-        }
-
-        .preview-package-image.visible {
-            display: block;
-        }
-
-        :root {
-    --primary-teal: #62D0B6;      
-    --accent-teal: #00b894;        
-    --primary-teal-hover: #00363f;
-    --primary-teal-light: #e6f7f4;
-    --text-dark: #333333;
-    --text-medium: #666666;
-    --text-light: #999999;
-    --gray-50: #fcfcfc;
-    --gray-100: #f5f5f5;
-    --border-color: #eeeeee;
-    --white: #ffffff;
-    --red: #ff5f5f;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
-}
-
-        /* ==================== إعادة تعيين ==================== */
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-        
-        body {
-            font-family: 'Tajawal', sans-serif;
-            background-color: var(--gray-50);
-            color: var(--text-dark);
-            font-size: 14px;
-            line-height: 1.6;
-            padding-bottom: 100px;
-        }
-
-        /* ==================== التخطيط الأساسي ==================== */
-        .container {
-            display: flex;
-            max-width: 1400px;
-            margin: 0 auto;
-            gap: 24px;
-            padding: 24px;
-            align-items: flex-start;
-        }
-
-        .main-content {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .sidebar {
-            width: 380px;
-            flex-shrink: 0;
-            position: sticky;
-            top: 24px;
-        }
-
-        /* ==================== البطاقات ==================== */
-        .card {
-            background: var(--white);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            margin-bottom: 16px;
-            overflow: hidden;
-        }
-
-        .card-header {
-            padding: 16px 20px;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: var(--white);
-        }
-
-        .card-header h3 {
-            margin: 0;
-            font-size: 15px;
-            font-weight: 700;
-            color: var(--text-dark);
-        }
-
-        .card-body {
-            padding: 20px;
-        }
-
-        /* ==================== معاينة الباقة ==================== */
-        .preview-card {
-            background: var(--white);
-            border-radius: 8px;
-            border: 1px solid var(--border-color);
-            padding: 20px;
-        }
-
-        .preview-header {
-            text-align: center;
-            padding-bottom: 16px;
-            border-bottom: 1px solid var(--border-color);
-            margin-bottom: 16px;
-        }
-
-        .preview-label {
-            font-size: 12px;
-            color: var(--text-light);
-            margin-bottom: 4px;
-        }
-
-        .preview-title {
-            font-size: 18px;
-            font-weight: 700;
-            color: var(--text-dark);
-            margin-bottom: 8px;
-            min-height: 27px;
-        }
-
-        .preview-price {
-            font-size: 20px;
-            font-weight: 700;
-            color: var(--primary-teal);
-            min-height: 30px;
-        }
-
-        .preview-elements {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .preview-element {
-            background: var(--gray-50);
-            border-radius: 6px;
-            padding: 12px;
-            border: 1px solid var(--border-color);
-        }
-
-        .preview-element-header {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .preview-element-number {
-            background: var(--primary-teal);
-            color: var(--white);
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .preview-products {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .preview-product {
-            font-size: 12px;
-            color: var(--text-medium);
-            padding: 6px 10px;
-            background: var(--white);
-            border-radius: 4px;
-            border: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .preview-product-image {
-            width: 32px;
-            height: 32px;
-            border-radius: 4px;
-            object-fit: cover;
-            background: var(--gray-100);
-        }
-
-        .preview-product-details {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .preview-product-name {
-            font-weight: 500;
-            color: var(--text-dark);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        .preview-product-price {
-            font-size: 11px;
-            color: var(--primary-teal);
-        }
-
-        /* ==================== حقول الإدخال ==================== */
-        .form-group {
-            margin-bottom: 16px;
-        }
-
-        .form-label {
-            display: block;
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 6px;
-        }
-
-        .form-input,
-        .form-textarea {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-family: 'Tajawal', sans-serif;
-            font-size: 14px;
-            transition: all 0.2s;
-            background: var(--white);
-        }
-
-        .form-input:focus,
-        .form-textarea:focus {
-            outline: none;
-            border-color: var(--primary-teal);
-            box-shadow: 0 0 0 3px var(--primary-teal-light);
-        }
-
-        .form-textarea {
-            resize: vertical;
-            min-height: 80px;
-        }
-
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 12px;
-        }
-
-        .checkbox-input {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--primary-teal);
-            cursor: pointer;
-        }
-
-        .checkbox-label {
-            font-size: 13px;
-            color: var(--text-dark);
-            cursor: pointer;
-        }
-
-        /* ==================== الأزرار ==================== */
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 6px;
-            font-family: 'Tajawal', sans-serif;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            justify-content: center;
-        }
-
-        .btn-primary {
-            background: var(--primary-teal);
-            color: var(--white);
-        }
-
-        .btn-primary:hover {
-            background: var(--primary-teal-hover);
-        }
-
-        .btn-secondary {
-            background: var(--gray-100);
-            color: var(--text-dark);
-        }
-
-        .btn-secondary:hover {
-            background: var(--gray-50);
-            border-color: var(--border-color);
-        }
-
-        .btn-danger {
-            background: var(--red);
-            color: var(--white);
-        }
-
-        .btn-full {
-            width: 100%;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* ==================== بطاقة العنصر ==================== */
-        .element-card {
-            background: var(--white);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            margin-bottom: 16px;
-            overflow: hidden;
-        }
-
-        .element-header {
-            background: var(--gray-50);
-            padding: 14px 16px;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            cursor: pointer;
-            user-select: none;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        .element-header:hover {
-            background: var(--gray-100);
-        }
-
-        .element-number {
-            background: var(--primary-teal);
-            color: var(--white);
-            width: 28px;
-            height: 28px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 13px;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
-
-        .element-title {
-            flex: 1;
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-dark);
-        }
-
-        .element-actions {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .element-collapse-icon {
-            font-size: 18px;
-            color: var(--text-light);
-            transition: transform 0.2s;
-        }
-
-        .element-header.collapsed .element-collapse-icon {
-            transform: rotate(-90deg);
-        }
-
-        .element-body {
-            padding: 16px;
-            max-height: 1000px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-        }
-
-        .element-body.collapsed {
-            max-height: 0;
-            padding: 0 16px;
-        }
-
-        .element-name-input {
-            width: 100%;
-            padding: 10px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            font-family: 'Tajawal', sans-serif;
-            font-size: 13px;
-            margin-bottom: 16px;
-        }
-
-        .element-name-input:focus {
-            outline: none;
-            border-color: var(--primary-teal);
-            box-shadow: 0 0 0 3px var(--primary-teal-light);
-        }
-
-        /* ==================== قائمة المنتجات ==================== */
-        .products-list {
-            margin-bottom: 16px;
-        }
-
-        .product-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px;
-            background: var(--gray-50);
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            margin-bottom: 8px;
-        }
-
-        .product-image {
-            width: 48px;
-            height: 48px;
-            border-radius: 6px;
-            object-fit: cover;
-            background: var(--gray-100);
-            flex-shrink: 0;
-        }
-
-        .product-details {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .product-name {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-dark);
-            margin-bottom: 2px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .product-price {
-            font-size: 12px;
-            color: var(--primary-teal);
-            font-weight: 600;
-        }
-
-        .product-remove {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: var(--red);
-            color: var(--white);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 16px;
-            flex-shrink: 0;
-            transition: all 0.2s;
-        }
-
-        .product-remove:hover {
-            transform: scale(1.1);
-        }
-
-        /* ==================== محدد المنتج ==================== */
-        .product-selector {
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            overflow: hidden;
-            background: var(--white);
-        }
-
-        .selector-header {
-            padding: 12px;
-            background: var(--gray-50);
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .selector-header .s-icon {
-            font-size: 16px;
-            color: var(--text-light);
-        }
-
-        .selector-search {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            font-family: 'Tajawal', sans-serif;
-            font-size: 13px;
-        }
-
-        .selector-search:focus {
-            outline: none;
-            border-color: var(--primary-teal);
-        }
-
-        .selector-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .selector-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
-            cursor: pointer;
-            border-bottom: 1px solid var(--border-color);
-            transition: background 0.2s;
-        }
-
-        .selector-item:hover {
-            background: var(--gray-50);
-        }
-
-        .selector-item:last-child {
-            border-bottom: none;
-        }
-
-        .selector-item-image {
-            width: 40px;
-            height: 40px;
-            border-radius: 4px;
-            object-fit: cover;
-            background: var(--gray-100);
-        }
-
-        .selector-item-details {
-            flex: 1;
-            min-width: 0;
-        }
-
-        .selector-item-name {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--text-dark);
-            margin-bottom: 2px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        .selector-item-price {
-            font-size: 12px;
-            color: var(--primary-teal);
-            font-weight: 600;
-        }
-
-        .selector-item-add {
-            padding: 6px 12px;
-            background: var(--primary-teal);
-            color: var(--white);
-            border: none;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .selector-item-add:hover {
-            background: var(--primary-teal-hover);
-        }
-
-        /* ==================== التذييل الثابت ==================== */
-        .fixed-footer {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: var(--white);
-            border-top: 1px solid var(--border-color);
-            padding: 16px 24px;
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            box-shadow: 0 -2px 8px rgba(0,0,0,0.05);
-            z-index: 1000;
-        }
-
-        .fixed-footer .btn {
-            min-width: 160px;
-        }
-
-        /* ==================== استجابة الموبايل ==================== */
-        @media (max-width: 1024px) {
-            .container {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                position: static;
-                order: -1;
-            }
-
-            .fixed-footer {
-                flex-direction: column;
-                gap: 8px;
-            }
-
-            .fixed-footer .btn {
-                width: 100%;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .container {
-                padding: 16px;
-            }
-
-            .card-body {
-                padding: 16px;
-            }
-
-            .element-header {
-                padding: 12px;
-            }
-
-            .element-body {
-                padding: 12px;
-            }
-
-            .preview-card {
-                padding: 16px;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
+    <div class="container"  dir="rtl">
         <!-- المحتوى الرئيسي -->
         <div class="main-content">
             <!-- معلومات الباقة الأساسية -->
@@ -839,6 +836,10 @@
         </button>
     </div>
 
+    @endif
+@endsection
+
+@section('script-overrides')
     <script>
         let packageElements = [];
         let elementCounter = 0;
@@ -850,53 +851,53 @@
         // دالة جلب المنتجات من Laravel API
         // دالة جلب المنتجات من Laravel API
         // هذه الدالة تجلب جميع المنتجات من جميع الصفحات
-   async function fetchProducts() {
-    try {
-        let allProducts = [];
-        let currentPage = 1;
-        let hasMorePages = true;
+        async function fetchProducts() {
+            try {
+                let allProducts = [];
+                let currentPage = 1;
+                let hasMorePages = true;
 
-        while (hasMorePages) {
-            // Fetch the specific page from Laravel
-            const response = await fetch(`http://127.0.0.1:8000/api/products?page=${currentPage}`, {
-                headers: { 'Accept': 'application/json' }
-            });
+                while (hasMorePages) {
+                    // Fetch the specific page from Laravel
+                    const response = await fetch(`http://127.0.0.1:8000/api/products?page=${currentPage}`, {
+                        headers: { 'Accept': 'application/json' }
+                    });
 
-            if (!response.ok) throw new Error('فشل الاتصال بالسيرفر');
+                    if (!response.ok) throw new Error('فشل الاتصال بالسيرفر');
 
-            const result = await response.json();
-            
-            // 1. Access the 'data' array provided by Laravel's paginator
-            const products = result.data.map(product => ({
-                id: product.internal_id,
-                name: product.name,
-                price: parseFloat(product.price),
-                image: product.image_url || 'https://via.placeholder.com/150' // Use image_url
-            }));
-            
-            allProducts = [...allProducts, ...products];
+                    const result = await response.json();
 
-            // 2. Check Laravel's 'meta' to see if there's a next page
-            if (result.meta && result.current_page < result.last_page) {
-                currentPage++;
-            } else if (result.next_page_url) { // Standard Laravel pagination key
-                currentPage++;
-            } else {
-                hasMorePages = false;
+                    // 1. Access the 'data' array provided by Laravel's paginator
+                    const products = result.data.map(product => ({
+                        id: product.internal_id,
+                        name: product.name,
+                        price: parseFloat(product.price),
+                        image: product.image_url || 'https://via.placeholder.com/150' // Use image_url
+                    }));
+
+                    allProducts = [...allProducts, ...products];
+
+                    // 2. Check Laravel's 'meta' to see if there's a next page
+                    if (result.meta && result.current_page < result.last_page) {
+                        currentPage++;
+                    } else if (result.next_page_url) { // Standard Laravel pagination key
+                        currentPage++;
+                    } else {
+                        hasMorePages = false;
+                    }
+
+                    // Safety break
+                    if (currentPage > 500) break;
+                }
+
+                availableProducts = allProducts;
+                console.log(`✅ تم تحميل ${availableProducts.length} منتج من جميع الصفحات`);
+
+            } catch (error) {
+                console.error("❌ خطأ:", error);
+                alert("تنبيه: فشل جلب المنتجات.");
             }
-
-            // Safety break
-            if (currentPage > 500) break;
         }
-
-        availableProducts = allProducts;
-        console.log(`✅ تم تحميل ${availableProducts.length} منتج من جميع الصفحات`);
-
-    } catch (error) {
-        console.error("❌ خطأ:", error);
-        alert("تنبيه: فشل جلب المنتجات.");
-    }
-}
 
         window.addEventListener('DOMContentLoaded', fetchProducts);
 
@@ -931,7 +932,7 @@
             });
 
             const container = document.getElementById('elements-container');
-            
+
             if (container.querySelector('div[style*="text-align: center"]')) {
                 container.innerHTML = '';
             }
@@ -982,7 +983,7 @@
             // تصفية المنتجات حسب نص البحث
             let productsToShow = availableProducts;
             if (filterText) {
-                productsToShow = availableProducts.filter(p => 
+                productsToShow = availableProducts.filter(p =>
                     p.name.includes(filterText)
                 );
             }
@@ -1017,7 +1018,7 @@
         function updatePreview() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-            
+
             document.getElementById('preview-title').textContent = packageName;
             document.getElementById('preview-price').textContent = `﷼ ${parseFloat(packagePrice).toFixed(2)}`;
 
@@ -1030,7 +1031,7 @@
             }
 
             const previewElements = document.getElementById('preview-elements');
-            
+
             if (packageElements.length === 0) {
                 previewElements.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
@@ -1076,10 +1077,10 @@
             }
 
             packageElements[elementIndex].products.push(product);
-            
+
             const element = packageElements[elementIndex];
             const elementId = element.id;
-            
+
             updateProductsList(elementId, elementIndex);
             updatePreview();
         }
@@ -1087,7 +1088,7 @@
         function updateProductsList(elementId, elementIndex) {
             const element = packageElements[elementIndex];
             const container = document.getElementById(`products-list-${elementId}`);
-            
+
             if (element.products.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 13px;">
@@ -1151,57 +1152,57 @@
                 body.classList.add('collapsed');
             }
         }
-async function savePackage() {
-    const packageName = document.getElementById('package-name').value;
-    const packagePrice = document.getElementById('package-price').value;
+        async function savePackage() {
+            const packageName = document.getElementById('package-name').value;
+            const packagePrice = document.getElementById('package-price').value;
 
-    if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
-    if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
-    if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
-    if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
+            if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
+            if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
+            if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
+            if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
 
-   const payload = {
-    name: packageName,
-    price: parseFloat(packagePrice),
-    description: document.getElementById('package-description').value,
-    image: packageImageUrl, // add this line
-    elements: packageElements.map((el, index) => ({
-        name: el.name || `العنصر ${index + 1}`,
-        products: el.products.map(p => ({ id: p.id }))
-    }))
-};
+            const payload = {
+                name: packageName,
+                price: parseFloat(packagePrice),
+                description: document.getElementById('package-description').value,
+                image: packageImageUrl, // add this line
+                elements: packageElements.map((el, index) => ({
+                    name: el.name || `العنصر ${index + 1}`,
+                    products: el.products.map(p => ({ id: p.id }))
+                }))
+            };
 
-    try {
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
 
-        const response = await fetch('http://127.0.0.1:8000/api/boxes', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify(payload)
-        });
+                const response = await fetch('http://127.0.0.1:8000/api/boxes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
 
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.message || 'فشل الحفظ');
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.message || 'فشل الحفظ');
 
-        btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
-        setTimeout(() => {
-            btn.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
-            btn.disabled = false;
-        }, 2000);
+                btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
+                    btn.disabled = false;
+                }, 2000);
 
-    } catch (error) {
-        alert(`خطأ: ${error.message}`);
-        event.target.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
-        event.target.disabled = false;
-    }
-}
+            } catch (error) {
+                alert(`خطأ: ${error.message}`);
+                event.target.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
+                event.target.disabled = false;
+            }
+        }
 
         function previewPackage() {
             const packageName = document.getElementById('package-name').value || 'اسم الباقة';
             const packagePrice = document.getElementById('package-price').value || '0.00';
-            
+
             let previewHTML = `
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -1281,8 +1282,4 @@ async function savePackage() {
 
         window.addEventListener('load', () => {});
     </script>
-</body>
-</html>
-
-    @endif
-@endsection
+    @endsection
