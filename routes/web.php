@@ -24,6 +24,9 @@ Route::get('/', function () {
 Auth::routes();
 
 Route::group(['middleware' => 'auth'], function () {
+    Route::get('/', function () {
+        return view('dashboard');
+    })->name('welcome');
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/oauth/redirect', [OAuthController::class, 'redirect'])->name('oauth.redirect');
     Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth.callback');
