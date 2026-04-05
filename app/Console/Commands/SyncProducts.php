@@ -31,7 +31,10 @@ class SyncProducts extends Command
         $this->info("Starting sync...");
         $totalSynced = 0;
 
-        foreach (User::all() as $user) {
+        // we nned to make sure after the app is instlled by 2 stores . all products from both stores should be synced
+        $users = User::whereHas('token')->get();
+
+        foreach ($users as $user) {
             $store_id = $user->token->merchant;
             $token = $user->token->access_token;
             $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100";
