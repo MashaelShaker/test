@@ -10,6 +10,6 @@ Route::get('/boxes/{id}', [BoxController::class, 'show']);
 Route::post('/boxes', [BoxController::class, 'store']);
 
 Route::post('/webhook', [WebhookController::class, 'handle']);
-Route::get('/products', [ProductController::class, 'index']); 
+Route::middleware('auth:sanctum')->get('/products', [ProductController::class, 'index']);
 Route::get('/products/{id}', [ProductController::class, 'show']);
 

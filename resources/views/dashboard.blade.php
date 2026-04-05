@@ -711,31 +711,9 @@
                 }
             }
         </style>
+
 @endsection
 @section('content')
-@if (!env('DASHBOARD_BYPASS_AUTH', false) && !optional(auth()->user())->token)
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 bg-white border-b border-gray-200">
-                        @if (session('status'))
-                            <div class="alert alert-success" role="alert">
-                                {{ session('status') }}
-                            </div>
-                        @endif
-
-                        <div>You don't have a token yet, you can start the Authorize from Salla</div>
-                        <div class="mt-4">
-                            <a href="{{ route('oauth.redirect') }}"
-                               class="bg-transparent hover:bg-blue-500 text-blue-700 font-semibold hover:text-white py-2 px-4 border border-blue-500 hover:border-transparent rounded">Get
-                                Access Token</a>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    @else
-
     <div class="container"  dir="rtl">
         <!-- المحتوى الرئيسي -->
         <div class="main-content">
@@ -836,7 +814,6 @@
         </button>
     </div>
 
-    @endif
 @endsection
 
 @section('script-overrides')
@@ -859,7 +836,7 @@
 
                 while (hasMorePages) {
                     // Fetch the specific page from Laravel
-                    const response = await fetch(`http://127.0.0.1:8000/api/products?page=${currentPage}`, {
+                    const response = await fetch(`/api/products?page=${currentPage}`, {
                         headers: { 'Accept': 'application/json' }
                     });
 
