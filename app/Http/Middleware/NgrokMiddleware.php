@@ -20,6 +20,7 @@ class NgrokMiddleware
      */
     public function handle($request, Closure $next)
     {
+        return $next($request);
         if (!app()->isLocal()) {
             return $next($request);
         }

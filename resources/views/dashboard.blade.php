@@ -836,7 +836,7 @@
 
                 while (hasMorePages) {
                     // Fetch the specific page from Laravel
-                    const response = await fetch(`http://127.0.0.1:8000/api/products?page=${currentPage}`, {
+                    const response = await fetch(`/api/products?page=${currentPage}`, {
                         headers: { 'Accept': 'application/json' }
                     });
 
