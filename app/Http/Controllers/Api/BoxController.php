@@ -24,18 +24,17 @@ class BoxController extends Controller
                 $imageUrl = Storage::url($filename);
             }
 
-           $storeResponse = \Illuminate\Support\Facades\Http::withToken(env('SALLA_API_KEY'))
-    ->get('https://api.salla.dev/admin/v2/store/info');
+            $storeResponse = Http::withToken(env('SALLA_API_KEY'))->get('https://api.salla.dev/admin/v2/store/info');
 
-$storeId = $storeResponse->json('data.id');
+            $storeId = $storeResponse->json('data.id');
 
-$box = Box::create([
-    'name'        => $validated['name'],
-    'price'       => $validated['price'],
-    'description' => $validated['description'] ?? null,
-    'image_url'   => $imageUrl,
-    'store_id'    => $storeId,
-]);
+            $box = Box::create([
+                'name'        => $validated['name'],
+                'price'       => $validated['price'],
+                'description' => $validated['description'] ?? null,
+                'image_url'   => $imageUrl,
+                'store_id'    => $storeId,
+            ]);
 
             foreach ($validated['elements'] as $elementData) {
                 $element = BoxElement::create([
