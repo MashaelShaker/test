@@ -19,15 +19,12 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 })->name('welcome');
-//هنا في مشكله بال auth عشان كذا حطيت كومنت ابا اجرب  دونه
-//Route::get('/dashboard', DashboardController::class)->middleware(['auth'])->name('dashboard');
-//Route::get('/dashboard', [DashboardController::class, 'index']);
-Auth::routes();
-
-Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
 // Salla Auth OAuth routes
+Auth::routes();
+
 Route::group(['middleware' => 'auth'], function () {
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
     Route::get('/oauth/redirect', [OAuthController::class, 'redirect'])->name('oauth.redirect');
     Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth.callback');
 });
