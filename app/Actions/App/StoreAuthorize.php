@@ -6,6 +6,7 @@ use App\Actions\BaseAction;
 use App\Models\User;
 use App\Services\SallaAuthService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use League\OAuth2\Client\Token\AccessToken;
 
@@ -17,10 +18,18 @@ use League\OAuth2\Client\Token\AccessToken;
  */
 class StoreAuthorize extends BaseAction
 {
+    protected $data;
+
+    // 1. Add this constructor to catch the data from the Controller
+    public function __construct(array $data)
+    {
+        $this->data = $data;
+    }
+
     public function handle()
     {
         /** @var SallaAuthService $service */
-        $service = app('salla.auth');
+        $service = app(SallaAuthService::class);
 
         if (!$service->isEasyMode()) {
             return;
@@ -29,6 +38,8 @@ class StoreAuthorize extends BaseAction
         /*
          * Lets get the store details using the access token in the event
          */
+        Log::info('StoreAuthorize', $this->data);
+
         $storeDetails = $service->getResourceOwner(new AccessToken($this->data));
 
         /**
@@ -37,7 +48,7 @@ class StoreAuthorize extends BaseAction
         $user = User::query()->firstOrCreate([
             'email' => $storeDetails->getEmail(),
         ], [
-            'name'     => $storeDetails->getStoreOwnerName(),
+            'name'     => $storeDetails->getStoreOwnerName() ?? $storeDetails->getEmail(),
             'password' => Hash::make(Str::random())
         ]);
 
