@@ -47,4 +47,87 @@ class BoxController extends Controller
 
         return response()->json(['message' => 'تم حفظ الباقة بنجاح', 'box' => $box], 201);
     }
+
+
+
+
+
+
+
+
+    public function index()
+    {
+        $boxes = Box::with('elements.products')->get();
+        return view('boxes.index', compact('boxes'));
+    }
+
+    // In BoxController.php
+    public function show($id)
+    {
+        $box = Box::with('elements.products')->findOrFail($id);
+        // Change 'show' to 'boxes.show' if the file is in resources/views/boxes/show.blade.php
+        return view('boxes.show', compact('box'));
+    }
+
+    public function edit($id)
+    {
+        $box = Box::with('elements.products')->findOrFail($id);
+
+        // تحويل البيانات لشكل يفهمه JavaScript بسهولة
+        $elements = $box->elements->map(function ($el) {
+            return [
+                'id' => 'element-' . $el->id,
+                'name' => $el->element_name,
+                'products' => $el->products->map(function ($p) {
+                    return [
+                        'id'    => $p->id,
+                        'name'  => $p->name,
+                        'price' => (float) $p->price,
+                        'image' => $p->image_url,
+                    ];
+                })->toArray(),
+            ];
+        })->toArray();
+
+        return view('dashboard', compact('box', 'elements')); // نمرر $elements هنا
+    }
+
+
+    public function update(Request $request, $id)
+    {
+        $box = \App\Models\Box::findOrFail($id);
+        // Reuse the validation logic from your store() method
+        // ... validation ...
+
+        $box->update([
+            'name' => $request->name,
+            'price' => $request->price,
+            'description' => $request->description,
+        ]);
+
+        // Sync elements: Simplest way is to drop and recreate for nested relations
+        $box->elements()->delete();
+        foreach ($request->elements as $elementData) {
+            $element = $box->elements()->create(['element_name' => $elementData['name']]);
+            $productIds = array_column($elementData['products'], 'id');
+            $element->products()->attach($productIds);
+        }
+
+        return response()->json(['message' => 'تم تحديث الباقة بنجاح']);
+    // Inside public function update
+    if (!empty($request->image) && strpos($request->image, 'data:image') !== false) {
+        $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
+        $imageData = base64_decode($imageData);
+        $filename = 'boxes/' . uniqid() . '.jpg';
+        Storage::disk('public')->put($filename, $imageData);
+        $box->image_url = Storage::url($filename);
+    }
+}
+
+    public function destroy($id)
+    {
+        $box = \App\Models\Box::findOrFail($id);
+        $box->delete(); // Cascades to elements via migration
+        return redirect()->back()->with('success', 'تم حذف الباقة');
+    }
 }

@@ -740,17 +740,17 @@
 
                     <div class="form-group">
                         <label class="form-label" for="package-name">اسم الباقة</label>
-                        <input type="text" id="package-name" class="form-input" placeholder="مثال: باقة العناية الشاملة" oninput="updatePreview()">
+                        <input type="text" id="package-name" class="form-input" placeholder="مثال: باقة العناية الشاملة" value="{{ $box->name ?? '' }}" oninput="updatePreview()">
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="package-price">سعر الباقة (﷼)</label>
-                        <input type="number" id="package-price" class="form-input" placeholder="0.00" step="0.01" min="0" oninput="updatePreview()">
+                        <input type="number" id="package-price" class="form-input" placeholder="0.00" step="0.01" min="0" value="{{ $box->price ?? '' }}" oninput="updatePreview()">
                     </div>
 
                     <div class="form-group">
                         <label class="form-label" for="package-description">وصف الباقة (اختياري)</label>
-                        <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة..."></textarea>
+                        <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة...">{{ $box->description ?? '' }}</textarea>
                     </div>
 
                     <div class="checkbox-group">
@@ -818,9 +818,9 @@
 
 @section('script-overrides')
     <script>
-        let packageElements = [];
-        let elementCounter = 0;
-        let packageImageUrl = null;
+        let packageElements = @json($elements ?? []);
+        let elementCounter = packageElements.length;
+        let packageImageUrl = "{{ $box->image_url ?? '' }}";
 
         // المتغير الذي سيحمل بيانات المنتجات من قاعدة البيانات
         let availableProducts = [];
@@ -841,7 +841,6 @@
                     });
 
                     if (!response.ok) throw new Error('فشل الاتصال بالسيرفر');
-
                     const result = await response.json();
 
                     // 1. Access the 'data' array provided by Laravel's paginator
@@ -869,6 +868,10 @@
 
                 availableProducts = allProducts;
                 console.log(`✅ تم تحميل ${availableProducts.length} منتج من جميع الصفحات`);
+
+                if (packageElements.length > 0) {
+                    renderExistingElements();
+                }
 
             } catch (error) {
                 console.error("❌ خطأ:", error);
@@ -1066,7 +1069,7 @@
             const element = packageElements[elementIndex];
             const container = document.getElementById(`products-list-${elementId}`);
 
-            if (element.products.length === 0) {
+            if (!element.products ||element.products.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 13px;">
                         لم يتم إضافة منتجات بعد
@@ -1075,7 +1078,9 @@
                 return;
             }
 
-            container.innerHTML = element.products.map((product, pIndex) => `
+            const fullProduct = availableProducts.find(ap => ap.id == product.id) || product;
+
+            return `
                 <div class="product-item">
                     <img src="${product.image}" alt="${product.name}" class="product-image">
                     <div class="product-details">
@@ -1138,6 +1143,14 @@
             if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
             if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
 
+            // We check if the $box variable was passed from the controller
+            const isEdit = "{{ isset($box) ? 'true' : 'false' }}" === 'true';
+            const boxId = "{{ $box->id ?? '' }}";
+
+            // If editing, use PUT and the specific ID. If creating, use POST.
+            const url = isEdit ? `http://127.0.0.1:8000/api/boxes/${boxId}` : 'http://127.0.0.1:8000/api/boxes';
+            const method = isEdit ? 'PUT' : 'POST';
+
             const payload = {
                 name: packageName,
                 price: parseFloat(packagePrice),
@@ -1155,8 +1168,8 @@
                 btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
 
                 const response = await fetch('http://127.0.0.1:8000/api/boxes', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    method: method,
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
                     body: JSON.stringify(payload)
                 });
 
@@ -1165,9 +1178,8 @@
 
                 btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
                 setTimeout(() => {
-                    btn.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
-                    btn.disabled = false;
-                }, 2000);
+                    window.location.href = '/boxes';
+                }, 1500);
 
             } catch (error) {
                 alert(`خطأ: ${error.message}`);
@@ -1258,5 +1270,59 @@
         }
 
         window.addEventListener('load', () => {});
+
+        function renderExistingElements() {
+            const container = document.getElementById('elements-container');
+            if (packageElements.length > 0) {
+                container.innerHTML = ''; // Clear the "No elements" message
+
+                packageElements.forEach((element, index) => {
+                    const elementHTML = `
+                    <div class="element-card" id="${element.id}" data-element-index="${index}">
+                        <div class="element-header" onclick="toggleCollapsible(this)">
+                            <div class="element-number">${index + 1}</div>
+                            <div class="element-title">${element.name || `العنصر ${index + 1}`}</div>
+                            <div class="element-actions">
+                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); removeElement('${element.id}', ${index})">
+                                    <i class="s-icon sicon-trash"></i>
+                                </button>
+                                <i class="s-icon sicon-keyboard_arrow_down element-collapse-icon"></i>
+                            </div>
+                        </div>
+                        <div class="element-body">
+                            <div class="form-group">
+                                <label class="form-label">اسم العنصر</label>
+                                <input type="text" class="element-name-input" value="${element.name}" oninput="updateElementName(${index}, this.value)">
+                            </div>
+                            <div class="products-list" id="products-list-${element.id}"></div>
+                            <div class="product-selector" id="selector-${element.id}">
+                                <div class="selector-header">
+                                    <i class="s-icon sicon-search"></i>
+                                    <input type="text" class="selector-search" placeholder="ابحث عن منتج..." oninput="filterProducts('${element.id}', this.value)">
+                                </div>
+                                <div class="selector-list" id="available-products-${element.id}">
+                                    ${renderAvailableProducts(element.id, index)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                    container.insertAdjacentHTML('beforeend', elementHTML);
+                    updateProductsList(element.id, index); // Fill the products for this card
+                });
+                updatePreview(); // Update the sidebar
+            }
+        }
+
+        // 5. Update Initialization
+    window.addEventListener('DOMContentLoaded', () => {
+        // Show current image in upload area if editing
+        if (packageImageUrl) {
+            const uploadArea = document.getElementById('upload-area');
+            uploadArea.classList.add('has-file');
+            uploadArea.innerHTML = `<img src="${packageImageUrl}" alt="صورة الباقة">`;
+        }
+        fetchProducts();
+    });
+
     </script>
     @endsection
