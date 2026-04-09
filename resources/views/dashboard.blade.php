@@ -752,16 +752,6 @@
                         <label class="form-label" for="package-description">وصف الباقة (اختياري)</label>
                         <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة...">{{ $box->description ?? '' }}</textarea>
                     </div>
-
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="package-active" class="checkbox-input" checked>
-                        <label for="package-active" class="checkbox-label">الباقة نشطة</label>
-                    </div>
-
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="package-featured" class="checkbox-input">
-                        <label for="package-featured" class="checkbox-label">باقة مميزة</label>
-                    </div>
                 </div>
             </div>
 
@@ -1069,7 +1059,7 @@
             const element = packageElements[elementIndex];
             const container = document.getElementById(`products-list-${elementId}`);
 
-            if (!element.products ||element.products.length === 0) {
+            if (element.products.length === 0) {
                 container.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 13px;">
                         لم يتم إضافة منتجات بعد
@@ -1078,9 +1068,8 @@
                 return;
             }
 
-            const fullProduct = availableProducts.find(ap => ap.id == product.id) || product;
-
-            return `
+            //const fullProduct = availableProducts.find(ap => ap.id == product.id) || product;
+            container.innerHTML = element.products.map((product, pIndex) => `
                 <div class="product-item">
                     <img src="${product.image}" alt="${product.name}" class="product-image">
                     <div class="product-details">
@@ -1167,9 +1156,13 @@
                 btn.disabled = true;
                 btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
 
-                const response = await fetch('http://127.0.0.1:8000/api/boxes', {
+                //const response = await fetch('http://127.0.0.1:8000/api/boxes', {
+                    const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content },
                     body: JSON.stringify(payload)
                 });
 
@@ -1179,7 +1172,7 @@
                 btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
                 setTimeout(() => {
                     window.location.href = '/boxes';
-                }, 1500);
+                }, 800);
 
             } catch (error) {
                 alert(`خطأ: ${error.message}`);

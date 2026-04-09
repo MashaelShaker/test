@@ -48,13 +48,6 @@ class BoxController extends Controller
         return response()->json(['message' => 'تم حفظ الباقة بنجاح', 'box' => $box], 201);
     }
 
-
-
-
-
-
-
-
     public function index()
     {
         $boxes = Box::with('elements.products')->get();
@@ -92,17 +85,23 @@ class BoxController extends Controller
         return view('dashboard', compact('box', 'elements')); // نمرر $elements هنا
     }
 
-
     public function update(Request $request, $id)
     {
         $box = \App\Models\Box::findOrFail($id);
-        // Reuse the validation logic from your store() method
-        // ... validation ...
+
+        if (!empty($request->image) && strpos($request->image, 'data:image') !== false) {
+            $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
+            $imageData = base64_decode($imageData);
+            $filename = 'boxes/' . uniqid() . '.jpg';
+            Storage::disk('public')->put($filename, $imageData);
+            $box->image_url = Storage::url($filename);
+        }
 
         $box->update([
             'name' => $request->name,
             'price' => $request->price,
             'description' => $request->description,
+            'image_url' => $box->image_url,
         ]);
 
         // Sync elements: Simplest way is to drop and recreate for nested relations
@@ -115,13 +114,7 @@ class BoxController extends Controller
 
         return response()->json(['message' => 'تم تحديث الباقة بنجاح']);
     // Inside public function update
-    if (!empty($request->image) && strpos($request->image, 'data:image') !== false) {
-        $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
-        $imageData = base64_decode($imageData);
-        $filename = 'boxes/' . uniqid() . '.jpg';
-        Storage::disk('public')->put($filename, $imageData);
-        $box->image_url = Storage::url($filename);
-    }
+
 }
 
     public function destroy($id)
