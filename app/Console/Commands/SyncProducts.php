@@ -35,7 +35,7 @@ class SyncProducts extends Command
         $users = User::whereHas('token')->get();
 
         foreach ($users as $user) {
-            $store_id = $user->token->merchant;
+            $store_id = $user->store_id ?? $user->token->merchant;
             $token = $user->token->access_token;
             $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100";
 

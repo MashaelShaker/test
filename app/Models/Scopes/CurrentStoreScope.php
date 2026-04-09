@@ -9,11 +9,11 @@ use Illuminate\Database\Eloquent\Scope;
 
 class CurrentStoreScope implements Scope
 {
-    public function apply(Builder $builder, Model $model): void
-    {
-        if (!auth()->check()) {
-            return;
-        }
-        $builder->where('store_id', auth()->user->token->merchant ?? null);
+   public function apply(Builder $builder, Model $model): void
+{
+    if (!auth()->check()) {
+        return;
     }
+    $builder->where('store_id', auth()->user()->store_id);
+}
 }

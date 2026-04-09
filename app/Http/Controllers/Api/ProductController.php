@@ -9,12 +9,11 @@ use Illuminate\Http\Request;
 
 class ProductController extends Controller
 {
-    public function index()
-    {
-        $products = Product::paginate(100);
-
-        return ProductResource::collection($products);
-    }
+public function index(Request $request)
+{
+    $products = Product::paginate(100);
+    return ProductResource::collection($products);
+}
 
 public function show($id)
 {
