@@ -676,8 +676,8 @@
 
                                 <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
                                     <a class="dropdown-item" href="{{ route('logout') }}"
-                                       onclick="event.preventDefault();
-                                                     document.getElementById('logout-form').submit();">
+                                        onclick="event.preventDefault();
+                                                    document.getElementById('logout-form').submit();">
                                         {{ __('Logout') }}
                                     </a>
 
@@ -870,8 +870,13 @@
                 return '<div style="padding:10px; text-align:center; color: var(--text-light);">لا توجد منتجات تطابق بحثك</div>';
             }
 
-            return productsToShow.map(product => `
-                <div class="selector-item" onclick="addProductToElement(${elementIndex}, ${product.id})">
+            return productsToShow.map(product => {
+                const alreadyAdded = packageElements[elementIndex] &&
+                    packageElements[elementIndex].products.some(p => p.id === product.id);
+                return `
+                <div class="selector-item" id="selector-item-${elementId}-${product.id}"
+                    onclick="addProductToElement(${elementIndex}, ${product.id})"
+                    style="${alreadyAdded ? 'display:none;' : ''}">
                     <img src="${product.image}" alt="${product.name}" class="selector-item-image" onerror="this.src='https://via.placeholder.com/150'">
                     <div class="selector-item-details">
                         <div class="selector-item-name">${product.name}</div>
@@ -880,8 +885,8 @@
                     <button class="selector-item-add">
                         <i class="s-icon sicon-plus"></i> إضافة
                     </button>
-                </div>
-            `).join('');
+                </div>`;
+            }).join('');
         }
 
         function filterProducts(elementId, searchText) {
@@ -957,6 +962,9 @@
             const elementId = element.id;
 
             updateProductsList(elementId, elementIndex);
+
+            const availableContainer = document.getElementById(`available-products-${elementId}`);
+            availableContainer.innerHTML = renderAvailableProducts(elementId, elementIndex);
             updatePreview();
         }
 
@@ -989,9 +997,16 @@
         }
 
         function removeProductFromElement(elementIndex, productIndex) {
-            packageElements[elementIndex].products.splice(productIndex, 1);
             const element = packageElements[elementIndex];
+            const elementId = element.id;
+            packageElements[elementIndex].products.splice(productIndex, 1);
             updateProductsList(element.id, elementIndex);
+
+            const availableContainer = document.getElementById(`available-products-${elementId}`);
+            if (availableContainer) {
+                availableContainer.innerHTML = renderAvailableProducts(elementId, elementIndex);
+            }
+
             updatePreview();
         }
 
