@@ -14,6 +14,8 @@ class BoxController extends Controller
     {
         try {
             $validated = $request->validated();
+            $user = auth()->user();
+            $token = $user->token->access_token;
 
             $imageUrl = null;
             if (!empty($validated['image'])) {
@@ -24,16 +26,31 @@ class BoxController extends Controller
                 $imageUrl = Storage::url($filename);
             }
 
-            $storeResponse = Http::withToken(env('SALLA_API_KEY'))->get('https://api.salla.dev/admin/v2/store/info');
+            // Create product on Salla
+            $sallaResponse = Http::withToken($token)
+                ->post('https://api.salla.dev/admin/v2/products', [
+                    'name'         => $validated['name'],
+                    'price'        => $validated['price'],
+                    'description'  => $validated['description'] ?? '',
+                    'status'       => 'sale',
+                    'product_type' => 'product',
+                    'quantity'     => 10,
+                ]);
 
-            $storeId = $storeResponse->json('data.id');
+            if (!$sallaResponse->successful()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'فشل إنشاء المنتج في سلة',
+                    'error'   => $sallaResponse->json()
+                ], 500);
+            }
 
             $box = Box::create([
                 'name'        => $validated['name'],
                 'price'       => $validated['price'],
                 'description' => $validated['description'] ?? null,
                 'image_url'   => $imageUrl,
-                'store_id'    => $storeId,
+                'store_id'    => $user->store_id,
             ]);
 
             foreach ($validated['elements'] as $elementData) {
@@ -41,7 +58,6 @@ class BoxController extends Controller
                     'box_id'       => $box->id,
                     'element_name' => $elementData['name'],
                 ]);
-
                 $productIds = array_column($elementData['products'], 'id');
                 $element->products()->attach($productIds);
             }
@@ -58,7 +74,6 @@ class BoxController extends Controller
                 'message' => 'خطأ في البيانات المرسلة',
                 'errors'  => $e->errors()
             ], 422);
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
