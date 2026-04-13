@@ -3,8 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Box;
+use App\Models\BoxElement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 
 class BoxController extends Controller
 {
@@ -14,13 +16,15 @@ class BoxController extends Controller
             'name'                       => 'required|string',
             'price'                      => 'required|numeric',
             'description'                => 'nullable|string',
-            'store_id'                   => 'nullable|string',
             'image'                      => 'nullable|string',
             'elements'                   => 'required|array|min:1',
             'elements.*.name'            => 'required|string',
             'elements.*.products'        => 'required|array|min:1',
             'elements.*.products.*.id'   => 'required|exists:products,id',
         ]);
+
+        $user = auth()->user();
+        $token = $user->token->access_token;
 
         $imageUrl = null;
         if (!empty($validated['image'])) {
@@ -31,21 +35,47 @@ class BoxController extends Controller
             $imageUrl = Storage::url($filename);
         }
 
+        $sallaResponse = Http::withToken($token)
+            ->acceptJson()
+            ->post('https://api.salla.dev/admin/v2/products', [
+                'name'         => $validated['name'],
+                'price'        => $validated['price'],
+                'description'  => $validated['description'] ?? '',
+                'status'       => 'sale',
+                'product_type' => 'product',
+                'quantity'     => 10,
+            ]);
+
+        if (!$sallaResponse->successful()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'فشل إنشاء المنتج في سلة',
+                'error'   => $sallaResponse->json()
+            ], 500);
+        }
+
+        $data = $sallaResponse->json();
+        $salla_product_id = $data['data']['id'] ?? $data['data']['product']['id'] ?? $data['id'] ?? null;
+
+        if (!$salla_product_id) {
+            return response()->json(['success' => false, 'message' => 'لم يتم جلب Salla Product ID', 'debug' => $data], 500);
+        }
+
         $box = Box::create([
-            'name'        => $validated['name'],
-            'price'       => $validated['price'],
-            'description' => $validated['description'] ?? null,
-            'store_id'    => $validated['store_id'] ?? null,
-            'image_url'   => $imageUrl,
+            'name'             => $validated['name'],
+            'price'            => $validated['price'],
+            'description'      => $validated['description'] ?? null,
+            'image_url'        => $imageUrl,
+            'store_id'         => $user->store_id,
+            'salla_product_id' => $salla_product_id,
         ]);
 
         foreach ($validated['elements'] as $elementData) {
-            $element = $box->elements()->create(['element_name' => $elementData['name']]);
-            $productIds = array_column($elementData['products'], 'id');
-            $element->products()->attach($productIds);
+            $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
+            $element->products()->attach(array_column($elementData['products'], 'id'));
         }
 
-        return response()->json(['message' => 'تم حفظ الباقة بنجاح', 'box' => $box], 201);
+        return response()->json(['success' => true, 'message' => 'تم حفظ الباقة بنجاح', 'data' => ['box_id' => $box->id, 'salla_product_id' => $salla_product_id]], 201);
     }
 
     public function index()
@@ -54,11 +84,9 @@ class BoxController extends Controller
         return view('boxes.index', compact('boxes'));
     }
 
-    // In BoxController.php
     public function show($id)
     {
         $box = Box::with('elements.products')->findOrFail($id);
-        // Change 'show' to 'boxes.show' if the file is in resources/views/boxes/show.blade.php
         return view('boxes.show', compact('box'));
     }
 
@@ -66,30 +94,25 @@ class BoxController extends Controller
     {
         $box = Box::with('elements.products')->findOrFail($id);
 
-        // تحويل البيانات لشكل يفهمه JavaScript بسهولة
-        $elements = $box->elements->map(function ($el) {
-            return [
-                'id' => 'element-' . $el->id,
-                'name' => $el->element_name,
-                'products' => $el->products->map(function ($p) {
-                    return [
-                        'id'    => $p->id,
-                        'name'  => $p->name,
-                        'price' => (float) $p->price,
-                        'image' => $p->image_url,
-                    ];
-                })->toArray(),
-            ];
-        })->toArray();
+        $elements = $box->elements->map(fn($el) => [
+            'id'       => 'element-' . $el->id,
+            'name'     => $el->element_name,
+            'products' => $el->products->map(fn($p) => [
+                'id'    => $p->id,
+                'name'  => $p->name,
+                'price' => (float) $p->price,
+                'image' => $p->image_url,
+            ])->toArray(),
+        ])->toArray();
 
-        return view('dashboard', compact('box', 'elements')); // نمرر $elements هنا
+        return view('dashboard', compact('box', 'elements'));
     }
 
     public function update(Request $request, $id)
     {
-        $box = \App\Models\Box::findOrFail($id);
+        $box = Box::findOrFail($id);
 
-        if (!empty($request->image) && strpos($request->image, 'data:image') !== false) {
+        if (!empty($request->image) && str_contains($request->image, 'data:image')) {
             $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
             $imageData = base64_decode($imageData);
             $filename = 'boxes/' . uniqid() . '.jpg';
@@ -98,24 +121,24 @@ class BoxController extends Controller
         }
 
         $box->update([
-            'name' => $request->name,
-            'price' => $request->price,
+            'name'        => $request->name,
+            'price'       => $request->price,
             'description' => $request->description,
-            'image_url' => $box->image_url,
+            'image_url'   => $box->image_url,
         ]);
 
-        // Sync elements: Simplest way is to drop and recreate for nested relations
-        $box->elements()->delete();
-        foreach ($request->elements as $elementData) {
-            $element = $box->elements()->create(['element_name' => $elementData['name']]);
-            $productIds = array_column($elementData['products'], 'id');
-            $element->products()->attach($productIds);
+        if ($request->has('elements')) {
+            $box->elements()->each(fn($el) => $el->products()->detach());
+            $box->elements()->delete();
+
+            foreach ($request->elements as $elementData) {
+                $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
+                $element->products()->attach(array_column($elementData['products'], 'id'));
+            }
         }
 
-        return response()->json(['message' => 'تم تحديث الباقة بنجاح']);
-    // Inside public function update
-
-}
+        return response()->json(['success' => true, 'message' => 'تم تحديث الباقة بنجاح', 'data' => $box]);
+    }
 
     public function destroy($id)
     {

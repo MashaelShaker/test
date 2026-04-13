@@ -42,11 +42,11 @@
             </div>
 
             <div class="form-group">
-    <label class="form-label" for="salla-url" style="text-align: right;">
-        رابط المنتج من سلة
+   <label class="form-label" for="salla-url" style="text-align: right;">
+
     </label>
     <input
-        type="text"
+        type="hidden"
         id="salla-url"
         class="form-input"
         style="text-align: right;"

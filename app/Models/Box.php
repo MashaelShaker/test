@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use App\Models\Scopes\CurrentStoreScope;
@@ -6,7 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class Box extends Model
 {
-    protected $fillable = ['store_id', 'name', 'price', 'description', 'image_url'];
+    protected $fillable = [
+        'store_id',
+        'name',
+        'price',
+        'description',
+        'image_url',
+        'salla_product_id' // ✅ لازم تنضاف
+    ];
 
     protected static function booted()
     {

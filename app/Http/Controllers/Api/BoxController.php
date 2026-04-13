@@ -42,28 +42,28 @@ class BoxController extends Controller
                     'product_type' => 'product',
                     'quantity'     => 10,
                 ]);
-                dd($sallaResponse->json());
 
-            // ❌ لو فشل الطلب
+            // ❌ لو فشل إنشاء المنتج في سلة
             if (!$sallaResponse->successful()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'فشل إنشاء المنتج في سلة',
                     'status'  => $sallaResponse->status(),
-                    'error'   => $sallaResponse->body()
+                    'error'   => $sallaResponse->json()
                 ], 500);
             }
 
-            // 🔥 استخراج ID بشكل آمن
+            // 📦 استخراج الرد
             $data = $sallaResponse->json();
 
+            // 🔥 استخراج ID بطريقة آمنة (حسب اختلاف ردود API)
             $salla_product_id =
                 $data['data']['id']
                 ?? $data['data']['product']['id']
                 ?? $data['id']
                 ?? null;
 
-            // ❌ إذا ما طلع ID
+            // ❌ إذا ما تم جلب ID
             if (!$salla_product_id) {
                 return response()->json([
                     'success' => false,
@@ -76,13 +76,13 @@ class BoxController extends Controller
             $box = Box::create([
                 'name'              => $validated['name'],
                 'price'             => $validated['price'],
-                'description'      => $validated['description'] ?? null,
+                'description'       => $validated['description'] ?? null,
                 'image_url'         => $imageUrl,
                 'store_id'          => $user->store_id,
                 'salla_product_id'  => $salla_product_id,
             ]);
 
-            // 📦 حفظ العناصر
+            // 📦 حفظ العناصر داخل البوكس
             foreach ($validated['elements'] as $elementData) {
                 $element = BoxElement::create([
                     'box_id'       => $box->id,
@@ -93,6 +93,7 @@ class BoxController extends Controller
                 $element->products()->attach($productIds);
             }
 
+            // ✅ نجاح العملية
             return response()->json([
                 'success' => true,
                 'message' => 'تم حفظ الباقة بنجاح',
