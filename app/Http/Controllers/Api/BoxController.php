@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -14,20 +15,25 @@ class BoxController extends Controller
     {
         try {
             $validated = $request->validated();
+
             $user = auth()->user();
             $token = $user->token->access_token;
 
+            // 📸 حفظ الصورة
             $imageUrl = null;
             if (!empty($validated['image'])) {
                 $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $validated['image']);
                 $imageData = base64_decode($imageData);
+
                 $filename = 'boxes/' . uniqid() . '.jpg';
                 Storage::disk('public')->put($filename, $imageData);
+
                 $imageUrl = Storage::url($filename);
             }
 
-            // Create product on Salla
+            // 🛒 إنشاء منتج في سلة
             $sallaResponse = Http::withToken($token)
+                ->acceptJson()
                 ->post('https://api.salla.dev/admin/v2/products', [
                     'name'         => $validated['name'],
                     'price'        => $validated['price'],
@@ -36,28 +42,53 @@ class BoxController extends Controller
                     'product_type' => 'product',
                     'quantity'     => 10,
                 ]);
+                dd($sallaResponse->json());
 
+            // ❌ لو فشل الطلب
             if (!$sallaResponse->successful()) {
                 return response()->json([
                     'success' => false,
                     'message' => 'فشل إنشاء المنتج في سلة',
-                    'error'   => $sallaResponse->json()
+                    'status'  => $sallaResponse->status(),
+                    'error'   => $sallaResponse->body()
                 ], 500);
             }
 
+            // 🔥 استخراج ID بشكل آمن
+            $data = $sallaResponse->json();
+
+            $salla_product_id =
+                $data['data']['id']
+                ?? $data['data']['product']['id']
+                ?? $data['id']
+                ?? null;
+
+            // ❌ إذا ما طلع ID
+            if (!$salla_product_id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'لم يتم جلب Salla Product ID',
+                    'debug'   => $data
+                ], 500);
+            }
+
+            // 💾 حفظ البوكس
             $box = Box::create([
-                'name'        => $validated['name'],
-                'price'       => $validated['price'],
-                'description' => $validated['description'] ?? null,
-                'image_url'   => $imageUrl,
-                'store_id'    => $user->store_id,
+                'name'              => $validated['name'],
+                'price'             => $validated['price'],
+                'description'      => $validated['description'] ?? null,
+                'image_url'         => $imageUrl,
+                'store_id'          => $user->store_id,
+                'salla_product_id'  => $salla_product_id,
             ]);
 
+            // 📦 حفظ العناصر
             foreach ($validated['elements'] as $elementData) {
                 $element = BoxElement::create([
                     'box_id'       => $box->id,
                     'element_name' => $elementData['name'],
                 ]);
+
                 $productIds = array_column($elementData['products'], 'id');
                 $element->products()->attach($productIds);
             }
@@ -65,7 +96,11 @@ class BoxController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'تم حفظ الباقة بنجاح',
-                'data'    => ['box_id' => $box->id, 'box_name' => $box->name]
+                'data'    => [
+                    'box_id' => $box->id,
+                    'box_name' => $box->name,
+                    'salla_product_id' => $salla_product_id
+                ]
             ], 201);
 
         } catch (\Illuminate\Validation\ValidationException $e) {
@@ -74,6 +109,7 @@ class BoxController extends Controller
                 'message' => 'خطأ في البيانات المرسلة',
                 'errors'  => $e->errors()
             ], 422);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

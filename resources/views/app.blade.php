@@ -1046,6 +1046,7 @@
         async function savePackage() {
             const packageName = document.getElementById('package-name').value;
             const packagePrice = document.getElementById('package-price').value;
+            const salla_url = document.getElementById('salla-url').value;
 
             if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
             if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
@@ -1065,6 +1066,7 @@
                 price: parseFloat(packagePrice),
                 description: document.getElementById('package-description').value,
                 image: packageImageUrl, // add this line
+                salla_url: salla_url,
                 elements: packageElements.map((el, index) => ({
                     name: el.name || `العنصر ${index + 1}`,
                     products: el.products.map(p => ({ id: p.id }))

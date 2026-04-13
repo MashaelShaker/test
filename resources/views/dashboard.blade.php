@@ -41,6 +41,19 @@
                 </div>
             </div>
 
+            <div class="form-group">
+    <label class="form-label" for="salla-url" style="text-align: right;">
+        رابط المنتج من سلة
+    </label>
+    <input
+        type="text"
+        id="salla-url"
+        class="form-input"
+        style="text-align: right;"
+        placeholder="https://demostore.salla.sa/dev-gvzumy3zn3luyfpd/box-test/p"
+    >
+</div>
+
             <!-- عناصر الباقة -->
             <div class="card">
                 <div class="card-header">
