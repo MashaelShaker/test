@@ -1,17 +1,13 @@
 <?php
-
 use App\Http\Controllers\BoxController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OAuthController;
 use App\Http\Controllers\Api\ProductController;
-use App\Http\Controllers\Api\BoxController as ApiBoxController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
-    if (auth()->check()) {
-        return redirect('/boxes');
-    }
+    if (auth()->check()) return redirect('/boxes');
     return redirect()->route('oauth.redirect');
 });
 
@@ -23,20 +19,16 @@ Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    // Product API routes
     Route::get('/api/products', [ProductController::class, 'index']);
     Route::get('/api/products/{id}', [ProductController::class, 'show']);
 
-    // Web view routes for boxes
     Route::get('/boxes', [BoxController::class, 'index']);
     Route::get('/boxes/{id}', [BoxController::class, 'show']);
     Route::delete('/boxes/{id}', [BoxController::class, 'destroy']);
     Route::get('/boxes/{id}/edit', [BoxController::class, 'edit']);
 
-    // API routes for boxes
     Route::get('/api/boxes', [BoxController::class, 'index']);
     Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
     Route::post('/api/boxes', [BoxController::class, 'store']);
-
     Route::put('/api/boxes/{id}', [BoxController::class, 'update']);
 });

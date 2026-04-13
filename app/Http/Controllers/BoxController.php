@@ -108,42 +108,63 @@ class BoxController extends Controller
         return view('dashboard', compact('box', 'elements'));
     }
 
-    public function update(Request $request, $id)
-    {
-        $box = Box::findOrFail($id);
+   public function update(Request $request, $id)
+{
+    $box = Box::findOrFail($id);
+    $user = auth()->user();
+    $token = $user->token->access_token;
 
-        if (!empty($request->image) && str_contains($request->image, 'data:image')) {
-            $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
-            $imageData = base64_decode($imageData);
-            $filename = 'boxes/' . uniqid() . '.jpg';
-            Storage::disk('public')->put($filename, $imageData);
-            $box->image_url = Storage::url($filename);
-        }
-
-        $box->update([
-            'name'        => $request->name,
-            'price'       => $request->price,
-            'description' => $request->description,
-            'image_url'   => $box->image_url,
-        ]);
-
-        if ($request->has('elements')) {
-            $box->elements()->each(fn($el) => $el->products()->detach());
-            $box->elements()->delete();
-
-            foreach ($request->elements as $elementData) {
-                $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
-                $element->products()->attach(array_column($elementData['products'], 'id'));
-            }
-        }
-
-        return response()->json(['success' => true, 'message' => 'تم تحديث الباقة بنجاح', 'data' => $box]);
+    if (!empty($request->image) && str_contains($request->image, 'data:image')) {
+        $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
+        $imageData = base64_decode($imageData);
+        $filename = 'boxes/' . uniqid() . '.jpg';
+        Storage::disk('public')->put($filename, $imageData);
+        $box->image_url = Storage::url($filename);
     }
 
-    public function destroy($id)
-    {
-        $box = \App\Models\Box::findOrFail($id);
-        $box->delete(); // Cascades to elements via migration
-        return redirect()->back()->with('success', 'تم حذف الباقة');
+    $box->update([
+        'name'        => $request->name,
+        'price'       => $request->price,
+        'description' => $request->description,
+        'image_url'   => $box->image_url,
+    ]);
+
+    if ($request->has('elements')) {
+        $box->elements()->each(fn($el) => $el->products()->detach());
+        $box->elements()->delete();
+
+        foreach ($request->elements as $elementData) {
+            $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
+            $element->products()->attach(array_column($elementData['products'], 'id'));
+        }
     }
+
+    if ($box->salla_product_id) {
+        Http::withToken($token)
+            ->acceptJson()
+            ->put("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}", [
+                'name'        => $box->name,
+                'price'       => $box->price,
+                'description' => $box->description ?? '',
+            ]);
+    }
+
+    return response()->json(['success' => true, 'message' => 'تم تحديث الباقة بنجاح', 'data' => $box]);
+}
+
+public function destroy($id)
+{
+    $box = Box::findOrFail($id);
+    $user = auth()->user();
+    $token = $user->token->access_token;
+
+    if ($box->salla_product_id) {
+        Http::withToken($token)
+            ->acceptJson()
+            ->delete("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
+    }
+
+    $box->delete();
+    return redirect()->back()->with('success', 'تم حذف الباقة');
+}
 }
