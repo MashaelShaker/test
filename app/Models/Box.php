@@ -32,4 +32,8 @@ class Box extends Model
     {
         return $this->hasMany(BoxElement::class);
     }
+public function getImageUrlAttribute()
+    { return url($this->attributes["image_url"]);
+    }
+
 }

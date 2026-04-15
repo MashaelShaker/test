@@ -38,36 +38,35 @@
                         <label class="form-label" for="package-description" dir="rtl" style="text-align: right;">وصف الباقة (اختياري)</label>
                         <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة..." dir="rtl"style="text-align: right;">{{ $box->description ?? '' }}</textarea>
                     </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="salla-url" style="text-align: right;"></label>
+                        <input
+                            type="hidden"
+                            id="salla-url"
+                            class="form-input"
+                            style="text-align: right;"
+                            placeholder="https://demostore.salla.sa/dev-gvzumy3zn3luyfpd/box-test/p"
+                        >
+                    </div>
                 </div>
             </div>
 
-            <div class="form-group">
-   <label class="form-label" for="salla-url" style="text-align: right;">
 
-    </label>
-    <input
-        type="hidden"
-        id="salla-url"
-        class="form-input"
-        style="text-align: right;"
-        placeholder="https://demostore.salla.sa/dev-gvzumy3zn3luyfpd/box-test/p"
-    >
-</div>
-
-            <!-- عناصر الباقة -->
+            <!-- منتجات الباقة -->
             <div class="card">
                 <div class="card-header">
-                    <h3><i class="s-icon sicon-list"></i> عناصر الباقة</h3>
+                    <h3><i class="s-icon sicon-list"></i> منتجات الباقة</h3>
                     <button class="btn btn-primary" onclick="addNewElement()">
                         <i class="s-icon sicon-plus"></i>
-                        إضافة عنصر
+                        إضافة منتج
                     </button>
                 </div>
                 <div class="card-body" id="elements-container">
-                    <div style="text-align: center; color: var(--text-light); padding: 40px 20px;">
-                        <i class="s-icon sicon-inbox" style="font-size: 48px; opacity: 0.3; display: block; margin-bottom: 12px;"></i>
-                        <p>لم يتم إضافة أي عناصر بعد</p>
-                        <p style="font-size: 12px; margin-top: 4px;">ابدأ بإضافة عنصر جديد للباقة</p>
+                    <div class="empty-state-wrapper">
+                        <i class="s-icon sicon-inbox" class="empty-state-icon"></i>
+                        <p>لم يتم إضافة أي منتجات بعد</p>
+                        <p style="font-size: 12px; margin-top: 4px;">ابدأ بإضافة منتج جديد للباقة</p>
                     </div>
                 </div>
             </div>
@@ -84,7 +83,7 @@
                 </div>
                 <div class="preview-elements" id="preview-elements">
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
-                        قم بإضافة عناصر للباقة لمشاهدة المعاينة
+                        قم بإضافة منتجات للباقة لمشاهدة المعاينة
                     </div>
                 </div>
             </div>

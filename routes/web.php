@@ -15,7 +15,6 @@ Auth::routes();
 
 Route::get('/oauth/redirect', [OAuthController::class, 'redirect'])->name('oauth.redirect');
 Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth.callback');
-
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
@@ -26,9 +25,10 @@ Route::middleware('auth')->group(function () {
     Route::get('/boxes/{id}', [BoxController::class, 'show']);
     Route::delete('/boxes/{id}', [BoxController::class, 'destroy']);
     Route::get('/boxes/{id}/edit', [BoxController::class, 'edit']);
+Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
 
     Route::get('/api/boxes', [BoxController::class, 'index']);
-    Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
+    
     Route::post('/api/boxes', [BoxController::class, 'store']);
     Route::put('/api/boxes/{id}', [BoxController::class, 'update']);
 });

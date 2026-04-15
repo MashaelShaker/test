@@ -34,4 +34,4 @@ class Updated extends BaseAction
 
     return $product;
 }
-    }
+    } 

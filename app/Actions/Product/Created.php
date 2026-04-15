@@ -17,6 +17,11 @@ class Created extends BaseAction
 {
     public function handle()
 {
+    /*if (\App\Models\Box::where('salla_product_id', $this->data['id'])->exists()) {
+        return null;
+    }*/
+        
+
     $product = Product::updateOrCreate(
         ['salla_product_id' => $this->data['id']],
         [

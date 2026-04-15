@@ -22,6 +22,7 @@ class BoxController extends Controller
             'price'      => 0,
             'is_default' => false,
             'image_url'  => $products[$pid]->image_url ?? null,
+            'display_value' => 1 //you need to set the image id as value You can upload a new image to product using attach image endpoint then use 'image' id from response,,https://docs.salla.dev/5394187e0
         ], $productIds);
 
         Http::withToken($token)
@@ -32,6 +33,7 @@ class BoxController extends Controller
                 'display_type' => 'image',  // changed from 'text'
                 'visibility'   => 'always',
                 'values'       => $values,
+                
             ]);
     }
 }
@@ -98,7 +100,7 @@ private function deleteAllSallaOptions(string $token, int $sallaProductId): void
         $salla_product_id = $data['data']['id'] ?? $data['data']['product']['id'] ?? $data['id'] ?? null;
 
         if (!$salla_product_id) {
-            return response()->json(['success' => false, 'message' => 'لم يتم جلب Salla Product ID', 'debug' => $data], 500);
+            return response()->json(['success' => false, 'message' => 'لم يتم جلب Salla Product ID', 'debug' => $data], 422);
         }
 
         $this->pushOptionsToSalla($token, $salla_product_id, $validated['elements']);
@@ -242,4 +244,13 @@ if ($getRes->successful()) {
         $box->delete();
         return redirect()->back()->with('success', 'تم حذف الباقة');
     }
+      public function details($id)
+    {  $box = Box::with('elements.products')->where("salla_product_id",$id)->first();
+
+    return response()->json([
+            'success' => true,
+            'message' => 'تم تحديث الباقة بنجاح',
+            'data'    => $box
+        ]);
+    } 
 }

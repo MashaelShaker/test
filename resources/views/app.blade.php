@@ -117,16 +117,34 @@
         }
         body {
             font-family: 'Tajawal', sans-serif;
+
+            background-image: url("{{asset('images/Pattern_transparent.png')}}");
+            background-repeat: repeat;
+            background-attachment: fixed;
+            background-size: 800px;
+
             background-color: var(--gray-50);
             color: var(--text-dark);
             font-size: 14px;
             line-height: 1.6;
             padding-top: 76px;
-            padding-bottom: 100px;
+            padding-bottom: 0 !important;
+        }
+
+        main {
+            padding-bottom: 100px !important; /* Creates invisible scroll space so footer doesn't hide content */
         }
         .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 70px;
             z-index: 1100;
+            background: #ffffff !important;
+            border-bottom: 1px solid var(--border-color);
         }
+
         /* ==================== التخطيط الأساسي ==================== */
         .container {
             display: flex;
@@ -346,7 +364,7 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
-        /* ==================== بطاقة العنصر ==================== */
+        /* ==================== بطاقة المنتج ==================== */
         .element-card {
             background: var(--white);
             border: 1px solid var(--border-color);
@@ -403,11 +421,13 @@
             padding: 16px;
             max-height: 1000px;
             overflow: hidden;
-            transition: all 0.3s ease;
+            transition: max-height 0.3s ease-out, padding 0.3s ease;
+            max-height: 1000px;
         }
         .element-body.collapsed {
-            max-height: 0;
-            padding: 0 16px;
+            max-height: 0 !important;
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
         }
         .element-name-input {
             width: 100%;
@@ -422,6 +442,20 @@
             outline: none;
             border-color: var(--primary-teal);
             box-shadow: 0 0 0 3px var(--primary-teal-light);
+        }
+
+        /* This replaces the inline styles you had before */
+        .empty-state-wrapper {
+            text-align: center;
+            color: #999999; /* This is var(--text-light) */
+            padding: 40px 20px;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            opacity: 0.3;
+            display: block;
+            margin-bottom: 12px;
         }
         /* ==================== قائمة المنتجات ==================== */
         .products-list {
@@ -577,12 +611,12 @@
             right: 0;
             background: var(--white);
             border-top: 1px solid var(--border-color);
-            padding: 16px 24px;
+            padding: 15px 0;
             display: flex;
             justify-content: center;
-            gap: 12px;
+            gap: 15px;
             box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-            z-index: 1000;
+            z-index: 9990;
         }
         .fixed-footer .btn {
             min-width: 160px;
@@ -627,83 +661,7 @@
 </head>
 <body>
     <div id="app">
-        <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm">
-                    <nav class="navbar navbar-expand-md navbar-light bg-white shadow-sm fixed-top">
-            <div class="container">
-                <a class="navbar-brand" href="{{ url('/') }}">
-                    {{ config('app.name', 'Laravel') }}
-                </a>
-                <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="{{ __('Toggle navigation') }}">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="navbarSupportedContent">
-                    <!-- Left Side Of Navbar -->
-                    <ul class="navbar-nav mr-auto">
-
-                    </ul>
-
-                    <!-- Right Side Of Navbar -->
-                    <ul class="navbar-nav ml-auto">
-                        <!-- Authentication Links -->
-                        @guest
-                            @if (Route::has('login'))
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('login') }}">{{ __('Login') }}</a>
-                                </li>
-                            @endif
-  @if (Route::has('login'))
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('login') }}">{{ __('Login') }}</a>
-                        </li>
-                        @endif
-
-                        @if (Route::has('register'))
-                        <li class="nav-item">
-                            <a class="nav-link" href="{{ route('register') }}">{{ __('Register') }}</a>
-                        </li>
-                        @endif
-                            @if (Route::has('register'))
-                                <li class="nav-item">
-                                    <a class="nav-link" href="{{ route('register') }}">{{ __('Register') }}</a>
-                                </li>
-                            @endif
-                        @else
-                            <li class="nav-item dropdown">
-                                <a id="navbarDropdown" class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" v-pre>
-                                    {{ Auth::user()->name }}
-                                </a>
-
-                                <div class="dropdown-menu dropdown-menu-right" aria-labelledby="navbarDropdown">
-                                    <a class="dropdown-item" href="{{ route('logout') }}"
-                                        onclick="event.preventDefault();
-                                                    document.getElementById('logout-form').submit();">
-                                        {{ __('Logout') }}
-                                    </a>
-
-                                    <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                                        @csrf
-                                    </form>
-                                </div>
-                            </li>
-                                <li class="nav-item d-flex align-items-center">
-                            <span class="nav-link text-muted">{{ Auth::user()->name }}</span>
-
-                            <a class="nav-link text-danger"
-                                href="{{ route('logout') }}"
-                                onclick="event.preventDefault(); document.getElementById('logout-form').submit();">
-                                Logout
-                            </a>
-
-                            <form id="logout-form" action="{{ route('logout') }}" method="POST" class="d-none">
-                                @csrf
-                            </form>
-                        </li>
-                        @endguest
-                    </ul>
-                </div>
-            </div>
-        </nav>
+        @include('partials.navbar')
 
         <main class="py-4">
             @yield('content')
@@ -797,6 +755,13 @@
         }
 
         function addNewElement() {
+            // Collapse all existing elements first
+            document.querySelectorAll('.element-header').forEach(header => {
+                const body = header.nextElementSibling;
+                header.classList.add('collapsed');
+                body.classList.add('collapsed');
+            });
+
             const elementId = `element-${++elementCounter}`;
             const elementIndex = packageElements.length;
 
@@ -808,15 +773,19 @@
 
             const container = document.getElementById('elements-container');
 
-            if (container.querySelector('div[style*="text-align: center"]')) {
+            const emptyState = container.querySelector('.empty-state-wrapper');
+                if (emptyState) {
+                    emptyState.remove();
+                }
+            /* if (container.querySelector('div[style*="text-align: center"]')) {
                 container.innerHTML = '';
-            }
+            } */
 
             const elementHTML = `
                 <div class="element-card" id="${elementId}" data-element-index="${elementIndex}">
                     <div class="element-header" onclick="toggleCollapsible(this)">
                         <div class="element-number">${elementIndex + 1}</div>
-                        <div class="element-title">العنصر ${elementIndex + 1}</div>
+                        <div class="element-title">المنتج ${elementIndex + 1}</div>
                         <div class="element-actions">
                             <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); removeElement('${elementId}', ${elementIndex})">
                                 <i class="s-icon sicon-trash"></i>
@@ -826,7 +795,7 @@
                     </div>
                     <div class="element-body">
                         <div class="form-group">
-                            <label class="form-label">اسم العنصر</label>
+                            <label class="form-label">اسم المنتج</label>
                             <input type="text" class="element-name-input" placeholder="مثال: اختر نوع الشامبو" oninput="updateElementName(${elementIndex}, this.value)">
                         </div>
 
@@ -915,7 +884,7 @@
             if (packageElements.length === 0) {
                 previewElements.innerHTML = `
                     <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
-                        قم بإضافة عناصر للباقة لمشاهدة المعاينة
+                        قم بإضافة منتجات للباقة لمشاهدة المعاينة
                     </div>
                 `;
                 return;
@@ -928,7 +897,7 @@
                     <div class="preview-element">
                         <div class="preview-element-header">
                             <div class="preview-element-number">${index + 1}</div>
-                            <span>${element.name || `العنصر ${index + 1}`}</span>
+                            <span>${element.name || `المنتج ${index + 1}`}</span>
                         </div>
                         <div class="preview-products">
                             ${element.products.map(product => `
@@ -952,7 +921,7 @@
 
             const exists = packageElements[elementIndex].products.some(p => p.id === productId);
             if (exists) {
-                alert('هذا المنتج مضاف بالفعل لهذا العنصر');
+                alert('هذا المنتج مضاف بالفعل لهذا المنتج');
                 return;
             }
 
@@ -1016,7 +985,7 @@
         }
 
         function removeElement(elementId, elementIndex) {
-            if (confirm('هل أنت متأكد من حذف هذا العنصر وجميع منتجاته؟')) {
+            if (confirm('هل أنت متأكد من حذف هذا المنتج وجميع منتجاته؟')) {
                 packageElements.splice(elementIndex, 1);
                 document.getElementById(elementId).remove();
                 renumberElements();
@@ -1035,10 +1004,22 @@
 
         function toggleCollapsible(header) {
             const body = header.nextElementSibling;
-            if (header.classList.contains('collapsed')) {
+            const isAlreadyCollapsed = header.classList.contains('collapsed');
+
+            // If the one you clicked is currently closed, we need to open it
+            if (isAlreadyCollapsed) {
+                // 1. This is the "Auto-Close" part:
+                // It finds all other headers and closes them.
+                document.querySelectorAll('.element-header').forEach(otherHeader => {
+                    otherHeader.classList.add('collapsed');
+                    otherHeader.nextElementSibling.classList.add('collapsed');
+                });
+
+                // 2. Open the specific one you clicked
                 header.classList.remove('collapsed');
                 body.classList.remove('collapsed');
             } else {
+                // If you clicked on an already open one, just close it
                 header.classList.add('collapsed');
                 body.classList.add('collapsed');
             }
@@ -1050,8 +1031,8 @@
 
             if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
             if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
-            if (packageElements.length === 0) { alert('يرجى إضافة عنصر واحد على الأقل'); return; }
-            if (packageElements.some(e => e.products.length === 0)) { alert('يوجد عناصر بدون منتجات'); return; }
+            if (packageElements.length === 0) { alert('يرجى إضافة منتج واحد على الأقل'); return; }
+            if (packageElements.some(e => e.products.length === 0)) { alert('يوجد منتجات بدون منتجات'); return; }
 
             // We check if the $box variable was passed from the controller
             const isEdit = "{{ isset($box) ? 'true' : 'false' }}" === 'true';
@@ -1065,10 +1046,10 @@
                 name: packageName,
                 price: parseFloat(packagePrice),
                 description: document.getElementById('package-description').value,
-                image: packageImageUrl, // add this line
+                image: packageImageUrl, 
                 salla_url: salla_url,
                 elements: packageElements.map((el, index) => ({
-                    name: el.name || `العنصر ${index + 1}`,
+                    name: el.name || `المنتج ${index + 1}`,
                     products: el.products.map(p => ({ id: p.id }))
                 }))
             };
@@ -1155,7 +1136,7 @@
                 <div class="element-section">
                     <div class="element-title">
                         <div class="element-number">${i+1}</div>
-                        <span>${el.name || `العنصر ${i+1}`}</span>
+                        <span>${el.name || `المنتج ${i+1}`}</span>
                     </div>
                     <div class="products-grid">
                         ${el.products.map((p, pi) => `
@@ -1192,37 +1173,38 @@
                 container.innerHTML = ''; // Clear the "No elements" message
 
                 packageElements.forEach((element, index) => {
+                    const elementId = element.id;
                     const elementHTML = `
-                    <div class="element-card" id="${element.id}" data-element-index="${index}">
-                        <div class="element-header" onclick="toggleCollapsible(this)">
-                            <div class="element-number">${index + 1}</div>
-                            <div class="element-title">${element.name || `العنصر ${index + 1}`}</div>
-                            <div class="element-actions">
-                                <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); removeElement('${element.id}', ${index})">
-                                    <i class="s-icon sicon-trash"></i>
-                                </button>
-                                <i class="s-icon sicon-keyboard_arrow_down element-collapse-icon"></i>
+                    <div class="element-card" id="${elementId}" data-element-index="${index}">
+                    <div class="element-header collapsed" onclick="toggleCollapsible(this)">
+                        <div class="element-number">${index + 1}</div>
+                        <div class="element-title">${element.name || `المنتج ${index + 1}`}</div>
+                        <div class="element-actions">
+                            <button class="btn btn-danger" style="padding: 6px 12px; font-size: 12px;" onclick="event.stopPropagation(); removeElement('${elementId}', ${index})">
+                                <i class="s-icon sicon-trash"></i>
+                            </button>
+                            <i class="s-icon sicon-keyboard_arrow_down element-collapse-icon"></i>
+                        </div>
+                    </div>
+                    <div class="element-body collapsed">
+                        <div class="form-group">
+                            <label class="form-label" style="text-align: right;">اسم المنتج</label>
+                            <input type="text" class="element-name-input" value="${element.name || ''}" oninput="updateElementName(${index}, this.value)">
+                        </div>
+                        <div class="products-list" id="products-list-${elementId}"></div>
+                        <div class="product-selector" id="selector-${elementId}">
+                            <div class="selector-header">
+                                <i class="s-icon sicon-search"></i>
+                                <input type="text" class="selector-search" placeholder="ابحث عن منتج..." oninput="filterProducts('${elementId}', this.value)">
+                            </div>
+                            <div class="selector-list" id="available-products-${elementId}">
+                                ${renderAvailableProducts(elementId, index)}
                             </div>
                         </div>
-                        <div class="element-body">
-                            <div class="form-group">
-                                <label class="form-label">اسم العنصر</label>
-                                <input type="text" class="element-name-input" value="${element.name}" oninput="updateElementName(${index}, this.value)">
-                            </div>
-                            <div class="products-list" id="products-list-${element.id}"></div>
-                            <div class="product-selector" id="selector-${element.id}">
-                                <div class="selector-header">
-                                    <i class="s-icon sicon-search"></i>
-                                    <input type="text" class="selector-search" placeholder="ابحث عن منتج..." oninput="filterProducts('${element.id}', this.value)">
-                                </div>
-                                <div class="selector-list" id="available-products-${element.id}">
-                                    ${renderAvailableProducts(element.id, index)}
-                                </div>
-                            </div>
-                        </div>
-                    </div>`;
+                    </div>
+                </div>`;
                     container.insertAdjacentHTML('beforeend', elementHTML);
-                    updateProductsList(element.id, index); // Fill the products for this card
+                    updateProductsList(elementId, index); // Fill the products for this card
                 });
                 updatePreview(); // Update the sidebar
             }

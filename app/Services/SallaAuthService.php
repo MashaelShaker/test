@@ -113,6 +113,24 @@ class SallaAuthService
 
         return $token;
     }
+    /*public function getNewAccessToken()
+{
+    if (!$this->token->hasExpired()) {
+        return new AccessToken($this->token->toArray());
+    }
+
+    $token = $this->provider->getAccessToken('refresh_token', [
+        'refresh_token' => $this->token->refresh_token
+    ]);
+
+    $this->token->update([
+        'access_token'  => $token->getToken(),
+        'expires_in'    => $token->getExpires(),
+        'refresh_token' => $token->getRefreshToken()
+    ]);
+
+    return $token;
+}*/
 
     public function request(string $method, string $url, array $options = [])
     {

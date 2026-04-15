@@ -16,16 +16,36 @@
         --bg-light: #fcfcfc; /* Consistent background for the whole workspace */
     }
 
-    body {
-        font-family: 'Tajawal', sans-serif;
-        background-color: var(--bg-light);
+    html, body {
+        /* Ensures the background covers the full height of the browser */
+        height: 100%;
         margin: 0;
         padding: 0;
     }
 
+    body {
+        font-family: 'Tajawal', sans-serif;
+
+        background-image: url("{{asset('images/Pattern_transparent.png')}}");
+        background-repeat: repeat;
+        background-attachment: fixed;
+        background-size: 800px;
+
+        min-height: 100vh; /* Ensures the body takes at least the full viewport height */
+
+        background-color: var(--bg-light);
+        display: flex;
+    }
+
+    #app {
+        flex: 1; /* Pushes the content to fill the space */
+        display: flex;
+        flex-direction: column;
+    }
     .s-icon {
         font-family: 'sallaicons' !important;
         font-style: normal;
+        font-size: 20px;
         vertical-align: middle;
     }
 
@@ -54,12 +74,12 @@
     }
 
     .header-title {
-        font-size: 16px;
+        font-size: 20px;
         font-weight: 700;
         color: var(--text-dark);
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 12px;
         margin: 0;
         white-space: nowrap;
     }
