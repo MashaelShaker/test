@@ -28,6 +28,11 @@ class WebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
+    if ($event === 'app.installed') {
+        (new \App\Actions\App\Installed())->handle();
+        return response()->json(['success' => true]);
+    }
+
     return response()->json(['success' => true]);
 }
 }

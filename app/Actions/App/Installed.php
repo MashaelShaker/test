@@ -3,6 +3,7 @@
 namespace App\Actions\App;
 
 use App\Actions\BaseAction;
+use Illuminate\Support\Facades\Artisan;
 
 /**
  * @property string merchant example "1234509876"
@@ -14,6 +15,7 @@ class Installed extends BaseAction
 {
     public function handle()
     {
+        Artisan::call('app:sync-products');
         // you can do whatever you want
     }
 }
