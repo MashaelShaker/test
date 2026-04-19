@@ -6,51 +6,286 @@ use App\Models\Box;
 use App\Models\BoxElement;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
+use Psr\Http\Message\RequestInterface;
 
 class BoxController extends Controller
 {
-   private function pushOptionsToSalla(string $token, int $sallaProductId, array $elements): void
-{
-    foreach ($elements as $elementData) {
-        $productIds = array_column($elementData['products'], 'id');
-        $products   = Product::whereIn('id', $productIds)->get()->keyBy('id');
+    /**
+     * Decode a data-URL image, persist to storage, return full public URL (APP_URL + /storage/...), or null if invalid/empty.
+     * Covers: create with image, update with new image — never returns a value for "no change" or garbage input.
+     */
+    private function storeImageFromDataUrl(?string $dataUrl): ?string
+    {
+        if (!is_string($dataUrl)) {
+            return null;
+        }
+        $dataUrl = trim($dataUrl);
+        if ($dataUrl === '') {
+            return null;
+        }
+        if (!str_contains($dataUrl, 'data:image') || !str_contains($dataUrl, 'base64,')) {
+            return null;
+        }
 
-        $values = array_map(fn($pid) => [
-            'name'       => $products[$pid]->name ?? "Product $pid",
-            'price'      => 0,
-            'is_default' => false,
-            'image_url'  => $products[$pid]->image_url ?? null,
-            'display_value' => 1 //you need to set the image id as value You can upload a new image to product using attach image endpoint then use 'image' id from response,,https://docs.salla.dev/5394187e0
-        ], $productIds);
+        $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $dataUrl);
+        if ($imageData === '') {
+            return null;
+        }
 
-        Http::withToken($token)
-            ->acceptJson()
-            ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", [
-                'name'         => $elementData['name'],
-                'required'     => true,
-                'display_type' => 'image',  // changed from 'text'
-                'visibility'   => 'always',
-                'values'       => $values,
-                
+        $binary = base64_decode($imageData, true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        // Reject effectively empty payloads (avoids corrupt / zero-byte "uploads")
+        if (strlen($binary) < 12) {
+            return null;
+        }
+
+        $filename = 'boxes/' . uniqid() . '.jpg';
+
+        Storage::disk('public')->put($filename, $binary);
+
+        return $this->absolutePublicStorageUrl($filename);
+    }
+
+    /**
+     * Full URL for public storage files — يعتمد على APP_URL (مثلاً ngrok) وليس host افتراضي خاطئ.
+     */
+    private function absolutePublicStorageUrl(string $relativePath): string
+    {
+        return rtrim((string) config('app.url'), '/') . '/storage/' . ltrim($relativePath, '/');
+    }
+
+    /**
+     * Resolve disk path under storage/app/public from a stored image URL (relative /storage/... or full APP_URL).
+     */
+    private function resolveLocalPublicStoragePath(string $imageUrl): ?string
+    {
+        $path = parse_url($imageUrl, PHP_URL_PATH);
+        if ($path === null || $path === false || $path === '') {
+            $path = $imageUrl;
+        }
+
+        $relative = null;
+        if (preg_match('#/storage/(.+)$#', $path, $m)) {
+            $relative = $m[1];
+        } else {
+            $stripped = str_replace('/storage/', '', $path);
+            if ($stripped !== $path) {
+                $relative = ltrim($stripped, '/');
+            }
+        }
+
+        if ($relative === null || $relative === '') {
+            return null;
+        }
+
+        $full = storage_path('app/public/' . $relative);
+
+        return is_readable($full) ? $full : null;
+    }
+
+    /**
+     * رفع صورة المنتج إلى Salla. أي فشل هنا لا يجب أن يكسر إنشاء/تحديث البوكس — يُسجَّل فقط ويُرجَع null.
+     */
+    private function uploadBoxImageToSalla($token, $sallaProductId, $imageUrl): ?int
+    {
+        if ($imageUrl === null || $imageUrl === '') {
+            return null;
+        }
+
+        $imagePath = $this->resolveLocalPublicStoragePath($imageUrl);
+        if ($imagePath === null) {
+            Log::error('Salla upload skipped: could not resolve local file from image_url', [
+                'image_url' => $imageUrl,
             ]);
+
+            return null;
+        }
+
+        Log::info('Salla upload local file before attach', [
+            'absolute_path' => $imagePath,
+            'is_file'         => is_file($imagePath),
+            'is_readable'     => is_readable($imagePath),
+            'size_bytes'      => @filesize($imagePath),
+        ]);
+
+        $fileSize = (int) (@filesize($imagePath) ?: 0);
+        if ($fileSize === 0) {
+            Log::error('Salla upload skipped: empty image contents');
+            return null;
+        }
+
+        $mimeType = mime_content_type($imagePath) ?: 'image/jpeg';
+        $filename = basename($imagePath);
+
+        // Ensure filename has proper extension for Salla API
+        $extension = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+        if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) {
+            $filename = pathinfo($filename, PATHINFO_FILENAME) . '.jpg';
+        }
+
+        $photoContent = file_get_contents($imagePath);
+
+        if ($photoContent === false) {
+            Log::error('Salla upload skipped: failed to read image contents', ['image_path' => $imagePath]);
+            return null;
+        }
+
+        $url = "https://api.salla.dev/admin/v2/products/{$sallaProductId}/images";
+        $payloadSize = $fileSize;
+
+        try {
+            Log::info('Salla upload payload ready', [
+                'has_content' => !empty($photoContent),
+                'mime_type'   => $mimeType,
+                'filename'    => $filename,
+                'payload_size'=> $payloadSize,
+                'sending'     => 'photo only',
+            ]);
+
+            $sentRequest = null;
+            $response = Http::withToken($token)
+                ->attach('photo', $photoContent, $filename)
+                ->withOptions([
+                    'on_stats' => function (\GuzzleHttp\TransferStats $stats) use (&$sentRequest) {
+                        $sentRequest = $stats->getRequest();
+                    },
+                ])
+                ->post($url);
+
+            Log::info('Salla upload response', [
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+
+            if (!$response->successful()) {
+                $fullBody = $response->body();
+
+                $failContext = [
+                    'status' => $response->status(),
+                    'body'   => $fullBody,
+                ];
+
+                if ($response->status() === 422) {
+                    $failContext['request_payload_size'] = $payloadSize;
+                    $failContext['request_headers'] = self::redactHeadersForLog($sentRequest);
+                }
+
+                Log::error('Salla upload failed', $failContext);
+                // نفس الجسم كاملاً في سطر منفصل لتفادي أي اقتطاع في عارض السجلات
+                Log::error('[Salla upload] complete response body (raw): ' . $fullBody);
+
+                return null;
+            }
+
+            $data = $response->json();
+            if (!is_array($data)) {
+                Log::error('Salla upload: unexpected JSON shape', [
+                    'body' => $response->body(),
+                ]);
+
+                return null;
+            }
+
+            $nested = $data['data'] ?? null;
+            $imageId = null;
+            if (is_array($nested)) {
+                $imageId = $nested['id'] ?? null;
+                if ($imageId === null && isset($nested['image']) && is_array($nested['image'])) {
+                    $imageId = $nested['image']['id'] ?? null;
+                }
+                if ($imageId === null && isset($nested['photo']) && is_array($nested['photo'])) {
+                    $imageId = $nested['photo']['id'] ?? null;
+                }
+            }
+            if ($imageId === null) {
+                $imageId = $data['id'] ?? null;
+            }
+
+            if ($imageId === null || $imageId === '') {
+                return null;
+            }
+
+            return (int) $imageId;
+        } catch (\Throwable $e) {
+            Log::error('Salla upload exception', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+
+            return null;
+        }
     }
-}
-private function deleteAllSallaOptions(string $token, int $sallaProductId): void
-{
-    $res = Http::withToken($token)
-        ->acceptJson()
-        ->get("https://api.salla.dev/admin/v2/products/{$sallaProductId}");
 
-    if (!$res->successful()) return;
+    /**
+     * @return array<string, string>
+     */
+    private static function redactHeadersForLog(?RequestInterface $request): array
+    {
+        if ($request === null) {
+            return ['_note' => 'request not captured (on_stats missing)'];
+        }
 
-    foreach ($res->json('data.options', []) as $option) {
-        Http::withToken($token)
+        $out = [];
+        foreach ($request->getHeaders() as $name => $values) {
+            $value = implode(', ', $values);
+            if (strtolower($name) === 'authorization') {
+                $value = preg_replace('/Bearer\s+\S+/i', 'Bearer [REDACTED]', $value) ?? $value;
+            }
+            $out[$name] = $value;
+        }
+
+        return $out;
+    }
+
+    private function pushOptionsToSalla(string $token, int $sallaProductId, array $elements): void
+    {
+        foreach ($elements as $elementData) {
+
+            $productIds = array_column($elementData['products'], 'id');
+            $products   = Product::whereIn('id', $productIds)->get()->keyBy('id');
+
+            $values = array_map(fn($pid) => [
+                'name'       => $products[$pid]->name ?? "Product $pid",
+                'price'      => 0,
+                'is_default' => false,
+                'image_url'  => $products[$pid]->image_url ?? null,
+
+                // IMPORTANT FIX ONLY (was 1)
+                'display_value' => $products[$pid]->image_url ?? null
+            ], $productIds);
+
+            Http::withToken($token)
+                ->acceptJson()
+                ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", [
+                    'name'         => $elementData['name'],
+                    'required'     => true,
+                    'display_type' => 'image',
+                    'visibility'   => 'always',
+                    'values'       => $values,
+                ]);
+        }
+    }
+
+    private function deleteAllSallaOptions(string $token, int $sallaProductId): void
+    {
+        $res = Http::withToken($token)
             ->acceptJson()
-            ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
+            ->get("https://api.salla.dev/admin/v2/products/{$sallaProductId}");
+
+        if (!$res->successful()) return;
+
+        foreach ($res->json('data.options', []) as $option) {
+            Http::withToken($token)
+                ->acceptJson()
+                ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
+        }
     }
-}
 
     public function store(Request $request)
     {
@@ -68,14 +303,7 @@ private function deleteAllSallaOptions(string $token, int $sallaProductId): void
         $user  = auth()->user();
         $token = $user->token->access_token;
 
-        $imageUrl = null;
-        if (!empty($validated['image'])) {
-            $imageData = preg_replace('/^data:image\/\w+;base64,/', '', $validated['image']);
-            $imageData = base64_decode($imageData);
-            $filename  = 'boxes/' . uniqid() . '.jpg';
-            Storage::disk('public')->put($filename, $imageData);
-            $imageUrl = Storage::url($filename);
-        }
+        $imageUrl = $this->storeImageFromDataUrl($validated['image'] ?? null);
 
         $sallaResponse = Http::withToken($token)
             ->acceptJson()
@@ -114,8 +342,26 @@ private function deleteAllSallaOptions(string $token, int $sallaProductId): void
             'salla_product_id' => $salla_product_id,
         ]);
 
+        // رفع الصورة لسلة فقط عند وجود ملف محفوظ وصالح (لا رفع فارغ).
+        // فشل الرفع أو عدم إرجاع image_id لا يُلغي إنشاء البوكس — يُسجَّل فقط داخل uploadBoxImageToSalla.
+        if ($imageUrl !== null) {
+            $sallaImageId = $this->uploadBoxImageToSalla(
+                $token,
+                $salla_product_id,
+                $imageUrl
+            );
+            if ($sallaImageId) {
+                $box->image_id = $sallaImageId;
+                $box->save();
+            }
+        }
+
         foreach ($validated['elements'] as $elementData) {
-            $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
+            $element = BoxElement::create([
+                'box_id' => $box->id,
+                'element_name' => $elementData['name']
+            ]);
+
             $element->products()->attach(array_column($elementData['products'], 'id'));
         }
 
@@ -162,61 +408,72 @@ private function deleteAllSallaOptions(string $token, int $sallaProductId): void
         $user  = auth()->user();
         $token = $user->token->access_token;
 
+        // null = لم يُرسل تغيير صورة أو القيمة غير صالحة — نُبقي image_url كما هو
+        $newImageUrl = $this->storeImageFromDataUrl($request->input('image'));
+
         $box->name        = $request->name;
         $box->price       = $request->price;
         $box->description = $request->description;
 
-        if (!empty($request->image) && str_contains($request->image, 'data:image')) {
-            $imageData      = preg_replace('/^data:image\/\w+;base64,/', '', $request->image);
-            $imageData      = base64_decode($imageData);
-            $filename       = 'boxes/' . uniqid() . '.jpg';
-            Storage::disk('public')->put($filename, $imageData);
-            $box->image_url = Storage::url($filename);
+        if ($newImageUrl !== null) {
+            $box->image_url = $newImageUrl;
         }
 
         $box->save();
+
+        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
+        if ($newImageUrl !== null && $box->salla_product_id) {
+            $sallaImageId = $this->uploadBoxImageToSalla(
+                $token,
+                (int) $box->salla_product_id,
+                $newImageUrl
+            );
+            if ($sallaImageId) {
+                $box->image_id = $sallaImageId;
+                $box->save();
+            }
+        }
 
         if ($request->has('elements')) {
             $box->elements()->each(fn($el) => $el->products()->detach());
             $box->elements()->delete();
 
             foreach ($request->elements as $elementData) {
-                $element = BoxElement::create(['box_id' => $box->id, 'element_name' => $elementData['name']]);
+                $element = BoxElement::create([
+                    'box_id' => $box->id,
+                    'element_name' => $elementData['name']
+                ]);
+
                 $element->products()->attach(array_column($elementData['products'], 'id'));
             }
         }
 
-if ($box->salla_product_id) {
-    Http::withToken($token)
-        ->acceptJson()
-        ->put("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}", [
-            'name'        => $request->name,
-            'price'       => $request->price,
-            'description' => $request->description ?? '',
-        ]);
-}
+        if ($box->salla_product_id) {
+            Http::withToken($token)
+                ->acceptJson()
+                ->put("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}", [
+                    'name'        => $request->name,
+                    'price'       => $request->price,
+                    'description' => $request->description ?? '',
+                ]);
+        }
 
+        if ($box->salla_product_id && $request->has('elements')) {
 
-if ($box->salla_product_id && $request->has('elements')) {
             $getRes = Http::withToken($token)
-    ->acceptJson()
-    ->get("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
+                ->acceptJson()
+                ->get("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
 
-\Log::info('GET product response', ['status' => $getRes->status()]);
-
-if ($getRes->successful()) {
-    foreach ($getRes->json('data.options', []) as $option) {
-        $delRes = Http::withToken($token)
-            ->acceptJson()
-            ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
-
-        \Log::info('DELETE option', ['option_id' => $option['id'], 'status' => $delRes->status()]);
-    }
-}
+            if ($getRes->successful()) {
+                foreach ($getRes->json('data.options', []) as $option) {
+                    Http::withToken($token)
+                        ->acceptJson()
+                        ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
+                }
+            }
 
             try {
                 $this->pushOptionsToSalla($token, $box->salla_product_id, $request->elements);
-                \Log::info('Options pushed successfully');
             } catch (\Exception $e) {
                 \Log::error('Salla options sync failed: ' . $e->getMessage());
             }
@@ -244,13 +501,15 @@ if ($getRes->successful()) {
         $box->delete();
         return redirect()->back()->with('success', 'تم حذف الباقة');
     }
-      public function details($id)
-    {  $box = Box::with('elements.products')->where("salla_product_id",$id)->first();
 
-    return response()->json([
+    public function details($id)
+    {
+        $box = Box::with('elements.products')->where("salla_product_id", $id)->first();
+
+        return response()->json([
             'success' => true,
             'message' => 'تم تحديث الباقة بنجاح',
             'data'    => $box
         ]);
-    } 
+    }
 }

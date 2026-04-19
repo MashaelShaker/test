@@ -13,7 +13,8 @@ class Box extends Model
         'price',
         'description',
         'image_url',
-        'salla_product_id' // ✅ لازم تنضاف
+        'image_id',
+        'salla_product_id',
     ];
 
     protected static function booted()
@@ -32,8 +33,26 @@ class Box extends Model
     {
         return $this->hasMany(BoxElement::class);
     }
-public function getImageUrlAttribute()
-    { return url($this->attributes["image_url"]);
+    public function getImageUrlAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $base = rtrim((string) config('app.url'), '/');
+
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            $host = parse_url($value, PHP_URL_HOST);
+            if (in_array($host, ['localhost', '127.0.0.1', '::1', '[::1]'], true)) {
+                $path = parse_url($value, PHP_URL_PATH) ?? '';
+
+                return $base . $path;
+            }
+
+            return $value;
+        }
+
+        return $base . '/' . ltrim($value, '/');
     }
 
 }

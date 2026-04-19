@@ -673,7 +673,13 @@
     <script>
         let packageElements = @json($elements ?? []);
         let elementCounter = packageElements.length;
-        let packageImageUrl = "{{ $box->image_url ?? '' }}";
+        /** Data URL from user upload: data:image/...;base64,... — sent to API as `image` */
+        let packageImageBase64 = null;
+        const existingPackageImageUrl = @json(isset($box) ? ($box->image_url ?? '') : '');
+
+        function getPackagePreviewImageSrc() {
+            return packageImageBase64 || existingPackageImageUrl || '';
+        }
 
         // المتغير الذي سيحمل بيانات المنتجات من قاعدة البيانات
         let availableProducts = [];
@@ -735,23 +741,43 @@
         window.addEventListener('DOMContentLoaded', fetchProducts);
 
         function handlePackageImageUpload(event) {
-            const file = event.target.files[0];
-            if (file) {
-                if (file.size > 2 * 1024 * 1024) {
-                    alert('حجم الملف كبير جداً. الحد الأقصى 2MB');
-                    return;
-                }
-
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    packageImageUrl = e.target.result;
-                    const uploadArea = document.getElementById('upload-area');
-                    uploadArea.classList.add('has-file');
-                    uploadArea.innerHTML = `<img src="${packageImageUrl}" alt="صورة الباقة">`;
-                    updatePreview();
-                };
-                reader.readAsDataURL(file);
+            const input = event.target;
+            const file = input.files && input.files[0];
+            if (!file) {
+                return;
             }
+
+            if (!file.type.startsWith('image/')) {
+                alert('يرجى اختيار ملف صورة');
+                input.value = '';
+                return;
+            }
+
+            if (file.size > 2 * 1024 * 1024) {
+                alert('حجم الملف كبير جداً. الحد الأقصى 2MB');
+                input.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                packageImageBase64 = e.target.result;
+                const uploadArea = document.getElementById('upload-area');
+                uploadArea.classList.add('has-file');
+                uploadArea.innerHTML = `<img src="${packageImageBase64}" alt="صورة الباقة">`;
+
+                const previewImg = document.getElementById('preview-package-image');
+                if (previewImg) {
+                    previewImg.src = packageImageBase64;
+                    previewImg.classList.add('visible');
+                }
+                updatePreview();
+            };
+            reader.onerror = function () {
+                alert('تعذّر قراءة الملف');
+                input.value = '';
+            };
+            reader.readAsDataURL(file);
         }
 
         function addNewElement() {
@@ -872,8 +898,9 @@
             document.getElementById('preview-price').textContent = `﷼ ${parseFloat(packagePrice).toFixed(2)}`;
 
             const previewImage = document.getElementById('preview-package-image');
-            if (packageImageUrl) {
-                previewImage.src = packageImageUrl;
+            const previewSrc = getPackagePreviewImageSrc();
+            if (previewSrc) {
+                previewImage.src = previewSrc;
                 previewImage.classList.add('visible');
             } else {
                 previewImage.classList.remove('visible');
@@ -1028,6 +1055,7 @@
             const packageName = document.getElementById('package-name').value;
             const packagePrice = document.getElementById('package-price').value;
             const salla_url = document.getElementById('salla-url').value;
+            const saveBtn = document.querySelector('.fixed-footer .btn-primary');
 
             if (!packageName) { alert('يرجى إدخال اسم الباقة'); return; }
             if (!packagePrice || parseFloat(packagePrice) <= 0) { alert('يرجى إدخال سعر صحيح'); return; }
@@ -1039,14 +1067,14 @@
             const boxId = "{{ $box->id ?? '' }}";
 
             // If editing, use PUT and the specific ID. If creating, use POST.
-            const url = isEdit ? `http://127.0.0.1:8000/api/boxes/${boxId}` : 'http://127.0.0.1:8000/api/boxes';
+            const url = isEdit ? `/api/boxes/${boxId}` : '/api/boxes';
             const method = isEdit ? 'PUT' : 'POST';
 
             const payload = {
                 name: packageName,
                 price: parseFloat(packagePrice),
                 description: document.getElementById('package-description').value,
-                image: packageImageUrl, 
+                image: packageImageBase64,
                 salla_url: salla_url,
                 elements: packageElements.map((el, index) => ({
                     name: el.name || `المنتج ${index + 1}`,
@@ -1055,12 +1083,12 @@
             };
 
             try {
-                const btn = event.target;
-                btn.disabled = true;
-                btn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '<i class="s-icon sicon-loading sicon-is-spinning"></i> جاري الحفظ...';
+                }
 
-                //const response = await fetch('http://127.0.0.1:8000/api/boxes', {
-                    const response = await fetch(url, {
+                const response = await fetch(url, {
                     method: method,
                     headers: {
                         'Content-Type': 'application/json',
@@ -1072,15 +1100,19 @@
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.message || 'فشل الحفظ');
 
-                btn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="s-icon sicon-check-circle"></i> تم الحفظ بنجاح';
+                }
                 setTimeout(() => {
                     window.location.href = '/boxes';
                 }, 500);
 
             } catch (error) {
                 alert(`خطأ: ${error.message}`);
-                event.target.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
-                event.target.disabled = false;
+                if (saveBtn) {
+                    saveBtn.innerHTML = '<i class="s-icon sicon-save"></i> حفظ الباقة';
+                    saveBtn.disabled = false;
+                }
             }
         }
 
@@ -1125,7 +1157,7 @@
 </head>
 <body>
     <div class="preview-container">
-        ${packageImageUrl ? `<img src="${packageImageUrl}" alt="${packageName}" class="package-image">` : ''}
+        ${getPackagePreviewImageSrc() ? `<img src="${getPackagePreviewImageSrc()}" alt="${packageName}" class="package-image">` : ''}
         <div class="package-header">
             <div class="package-badge"><i class="s-icon sicon-box-bankers"></i> باقة مخصصة</div>
             <h1 class="package-title">${packageName}</h1>
@@ -1213,10 +1245,15 @@
         // 5. Update Initialization
     window.addEventListener('DOMContentLoaded', () => {
         // Show current image in upload area if editing
-        if (packageImageUrl) {
+        if (existingPackageImageUrl) {
             const uploadArea = document.getElementById('upload-area');
             uploadArea.classList.add('has-file');
-            uploadArea.innerHTML = `<img src="${packageImageUrl}" alt="صورة الباقة">`;
+            uploadArea.innerHTML = `<img src="${existingPackageImageUrl}" alt="صورة الباقة">`;
+            const previewImg = document.getElementById('preview-package-image');
+            if (previewImg) {
+                previewImg.src = existingPackageImageUrl;
+                previewImg.classList.add('visible');
+            }
         }
         fetchProducts();
     });

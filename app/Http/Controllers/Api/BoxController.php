@@ -28,7 +28,7 @@ class BoxController extends Controller
                 $filename = 'boxes/' . uniqid() . '.jpg';
                 Storage::disk('public')->put($filename, $imageData);
 
-                $imageUrl = Storage::url($filename);
+                $imageUrl = rtrim((string) config('app.url'), '/') . '/storage/' . ltrim($filename, '/');
             }
 
             // 🛒 إنشاء منتج في سلة
