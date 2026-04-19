@@ -17,7 +17,12 @@ class WebhookController extends Controller
     }
 
     if ($event === 'product.created') {
-        return (new \App\Actions\Product\Created($data))->handle();
+        (new \App\Actions\Product\Created($data))->handle();
+        return response()->json(['success' => true]);
+    }
+
+    if ($event === 'product.deleted') {
+        (new \App\Actions\Product\Deleted($data))->handle();
         return response()->json(['success' => true]);
     }
 

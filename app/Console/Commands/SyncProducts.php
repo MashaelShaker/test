@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\Box;
 use App\Models\User;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
@@ -46,6 +47,10 @@ class SyncProducts extends Command
                     $result = $response->json();
 
                     foreach ($result['data'] as $item) {
+                        if (Box::where('salla_product_id', $item['id'])->exists()) {
+                            continue;
+                        }
+
                         Product::updateOrCreate(
                             ['salla_product_id' => $item['id']],
                             [
