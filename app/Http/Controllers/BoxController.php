@@ -6,9 +6,9 @@ use App\Models\Box;
 use App\Models\BoxElement;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
 use Psr\Http\Message\RequestInterface;
 
 class BoxController extends Controller
@@ -585,18 +585,23 @@ class BoxController extends Controller
                 ->acceptJson()
                 ->get("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
 
-            if ($getRes->successful()) {
-                foreach ($getRes->json('data.options', []) as $option) {
-                    Http::withToken($token)
-                        ->acceptJson()
-                        ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
-                }
-            }
+Log::info('GET product response', ['status' => $getRes->status()]);
+
+if ($getRes->successful()) {
+    foreach ($getRes->json('data.options', []) as $option) {
+        $delRes = Http::withToken($token)
+            ->acceptJson()
+            ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
+
+        Log::info('DELETE option', ['option_id' => $option['id'], 'status' => $delRes->status()]);
+    }
+}
 
             try {
                 $this->pushOptionsToSalla($token, $box->salla_product_id, $request->elements);
+                Log::info('Options pushed successfully');
             } catch (\Exception $e) {
-                \Log::error('Salla options sync failed: ' . $e->getMessage());
+                Log::error('Salla options sync failed: ' . $e->getMessage());
             }
         }
 
@@ -627,15 +632,30 @@ class BoxController extends Controller
 
         return redirect()->back()->with('success', 'تم حذف الباقة');
     }
-
-    public function details($id)
+    public function details($salla_product_id)
     {
-        $box = Box::with('elements.products')->where("salla_product_id", $id)->first();
+        $box = Box::with('elements.products')
+            ->where('salla_product_id', $salla_product_id)
+            ->first();
+
+        if (!$box) {
+            return response()->json([
+                'success' => false,
+                'message' => 'لا توجد باقة مرتبطة بهذا المنتج',
+                'data' => null,
+            ], 404)
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'تم تحديث الباقة بنجاح',
-            'data'    => $box
-        ]);
+            'message' => 'تم تحميل بيانات الباقة بنجاح',
+            'data' => $box,
+        ])
+            ->header('Access-Control-Allow-Origin', '*')
+            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+            ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
     }
 }
