@@ -530,6 +530,19 @@ class BoxController extends Controller
 
         $box->save();
 
+        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
+        if ($newImageUrl !== null && $box->salla_product_id) {
+            $sallaImageId = $this->uploadBoxImageToSalla(
+                $token,
+                (int) $box->salla_product_id,
+                $newImageUrl
+            );
+            if ($sallaImageId) {
+                $box->image_id = $sallaImageId;
+                $box->save();
+            }
+        }
+
         if ($newImageUrl !== null && $oldImageUrl !== null && $oldImageUrl !== $newImageUrl) {
             $this->deleteLocalImage($oldImageUrl);
         }
@@ -585,17 +598,17 @@ class BoxController extends Controller
                 ->acceptJson()
                 ->get("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
 
-Log::info('GET product response', ['status' => $getRes->status()]);
+            Log::info('GET product response', ['status' => $getRes->status()]);
 
-if ($getRes->successful()) {
-    foreach ($getRes->json('data.options', []) as $option) {
-        $delRes = Http::withToken($token)
-            ->acceptJson()
-            ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
+            if ($getRes->successful()) {
+                foreach ($getRes->json('data.options', []) as $option) {
+                    $delRes = Http::withToken($token)
+                        ->acceptJson()
+                        ->delete("https://api.salla.dev/admin/v2/products/options/{$option['id']}");
 
-        Log::info('DELETE option', ['option_id' => $option['id'], 'status' => $delRes->status()]);
-    }
-}
+                    Log::info('DELETE option', ['option_id' => $option['id'], 'status' => $delRes->status()]);
+                }
+            }
 
             try {
                 $this->pushOptionsToSalla($token, $box->salla_product_id, $request->elements);

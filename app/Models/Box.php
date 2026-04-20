@@ -13,7 +13,8 @@ class Box extends Model
         'price',
         'description',
         'image_url',
-        'salla_product_id' // ✅ لازم تنضاف
+        'image_id',
+        'salla_product_id',
     ];
 
     protected static function booted()
@@ -30,20 +31,28 @@ class Box extends Model
 
     public function elements()
     {
-        return $this->hasMany(BoxElement::class);}
- public function getImageUrlAttribute($value)
-{
-    // If there is no image in the database, return null so Blade uses the fallback
-    if (!$value) {
-        return null;
+        return $this->hasMany(BoxElement::class);
+    }
+    public function getImageUrlAttribute($value): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $base = rtrim((string) config('app.url'), '/');
+
+        if (str_starts_with($value, 'http://') || str_starts_with($value, 'https://')) {
+            $host = parse_url($value, PHP_URL_HOST);
+            if (in_array($host, ['localhost', '127.0.0.1', '::1', '[::1]'], true)) {
+                $path = parse_url($value, PHP_URL_PATH) ?? '';
+
+                return $base . $path;
+            }
+
+            return $value;
+        }
+
+        return $base . '/' . ltrim($value, '/');
     }
 
-    // If it's already a full URL (like a placeholder), just return it
-    if (filter_var($value, FILTER_VALIDATE_URL)) {
-        return $value;
-    }
-
-    // Otherwise, wrap it in url()
-    return url($value);
-}
 }
