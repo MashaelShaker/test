@@ -1039,7 +1039,7 @@
             const boxId = "{{ $box->id ?? '' }}";
 
             // If editing, use PUT and the specific ID. If creating, use POST.
-            const url = isEdit ? `http://127.0.0.1:8000/api/boxes/${boxId}` : 'http://127.0.0.1:8000/api/boxes';
+            const url = isEdit ? `/api/boxes/${boxId}` : '/api/boxes';
             const method = isEdit ? 'PUT' : 'POST';
 
             const payload = {

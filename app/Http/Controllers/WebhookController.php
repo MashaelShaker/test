@@ -17,7 +17,12 @@ class WebhookController extends Controller
     }
 
     if ($event === 'product.created') {
-        return (new \App\Actions\Product\Created($data))->handle();
+        (new \App\Actions\Product\Created($data))->handle();
+        return response()->json(['success' => true]);
+    }
+
+    if ($event === 'product.deleted') {
+        (new \App\Actions\Product\Deleted($data))->handle();
         return response()->json(['success' => true]);
     }
 
@@ -25,6 +30,11 @@ class WebhookController extends Controller
         (new \App\Actions\App\StoreAuthorize($data))
           //  ->setRequest(request())
             ->handle();
+        return response()->json(['success' => true]);
+    }
+
+    if ($event === 'app.installed') {
+        (new \App\Actions\App\Installed())->handle();
         return response()->json(['success' => true]);
     }
 
