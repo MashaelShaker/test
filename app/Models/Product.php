@@ -28,6 +28,18 @@ class Product extends Model
         'price',
         'stock_quantity',
         'image_url',
+        'variants_data',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array
+     */
+    protected $casts = [
+        'variants_data' => 'array',
+        'salla_product_id' => 'integer',
+        'price' => 'decimal:2',
     ];
 
     public function boxElements()

@@ -38,7 +38,7 @@ class SyncProducts extends Command
         foreach ($users as $user) {
             $store_id = $user->store_id ?? $user->token->merchant;
             $token = $user->token->access_token;
-            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100";
+            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100include=variants,options";
 
             while ($nextPageUrl) {
                 $response = Http::withToken($token)->get($nextPageUrl);
@@ -51,6 +51,33 @@ class SyncProducts extends Command
                             continue;
                         }
 
+                        $syncedData = [];
+                        // 1. Check for Variants first
+                        if (!empty($item['variants'])) {
+                            foreach ($item['variants'] as $variant) {
+                                $syncedData[] = [
+                                    'id'    => $variant['id'],
+                                    'name'  => $variant['name'],
+                                    'image' => $variant['image']['url'] ?? $item['main_image'] ?? null,
+                                ];
+                            }
+                        }
+                        // 2. IMPORTANT: If variants are empty, pull from Options
+                        elseif (!empty($item['options'])) {
+                            foreach ($item['options'] as $option) {
+                                // We look inside 'values' for the actual choices (36, 38, 40...)
+                                if (isset($option['values']) && is_array($option['values'])) {
+                                    foreach ($option['values'] as $value) {
+                                        $syncedData[] = [
+                                            'id'    => $value['id'],
+                                            'name'  => $value['name'],
+                                            'image' => $value['image'] ?? $item['main_image'] ?? null,
+                                        ];
+                                    }
+                                }
+                            }
+                        }
+
                         Product::updateOrCreate(
                             ['salla_product_id' => $item['id']],
                             [
@@ -59,6 +86,7 @@ class SyncProducts extends Command
                                 'price'          => $item['price']['amount'] ?? 0,
                                 'stock_quantity' => $item['quantity'] ?? 0,
                                 'image_url'      => $item['main_image'] ?? '',
+                                'variants_data'  => $syncedData,
                                 'store_id'       => $store_id,
                             ]
                         );
@@ -68,8 +96,12 @@ class SyncProducts extends Command
                     }
                     // Move to the next page if it exists
                     $nextPageUrl = $result['pagination']['links']['next'] ?? null;
+                    if ($nextPageUrl && !str_contains($nextPageUrl, 'include=variants')) {
+                    $nextPageUrl .= (str_contains($nextPageUrl, '?') ? '&' : '?') . 'include=variants';
+                }
+
                 } else {
-                    $this->error("Error in fetching: " . $response->body());
+                    $this->error("Error in fetching from store $store_id: " . $response->body());
                     break;
                 }
             }

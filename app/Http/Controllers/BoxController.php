@@ -347,33 +347,59 @@ class BoxController extends Controller
     }
 
     private function pushOptionsToSalla(string $token, int $sallaProductId, array $elements): void
-    {
-        foreach ($elements as $elementData) {
+{
+    foreach ($elements as $elementData) {
+        $productIds = array_column($elementData['products'], 'id');
+        $products = Product::whereIn('id', $productIds)->get()->keyBy('id');
 
-            $productIds = array_column($elementData['products'], 'id');
-            $products   = Product::whereIn('id', $productIds)->get()->keyBy('id');
+        // 1. Gather ALL values for THIS element first
+        $allValuesForThisElement = [];
 
-            $values = array_map(fn($pid) => [
-                'name'       => $products[$pid]->name ?? "Product $pid",
-                'price'      => 0,
-                'is_default' => false,
-                'image_url'  => $products[$pid]->image_url ?? null,
+        foreach ($elementData['products'] as $item) {
+            $product = $products->get($item['id']);
+            if (!$product) continue;
 
-                // IMPORTANT FIX ONLY (was 1)
-                'display_value' => $products[$pid]->image_url ?? null
-            ], $productIds);
+            $data = $product->variants_data;
 
-            Http::withToken($token)
+            if (!empty($data) && is_array($data)) {
+                // If the product has variants, add each as a choice
+                foreach ($data as $entry) {
+                    $allValuesForThisElement[] = [
+                        'name'          => $product->name . ' (' . ($entry['name'] ?? 'Default') . ')',
+                        'price'         => 0,
+                        'display_value' => $entry['image'] ?? $entry['photo'] ?? $product->image_url,
+                    ];
+                }
+            } else {
+                // Standard product without variants
+                $allValuesForThisElement[] = [
+                    'name'          => $product->name,
+                    'price'         => 0,
+                    'display_value' => $product->image_url,
+                ];
+            }
+        }
+
+        // 2. Send ONE request per Box Element containing all products/variants
+        if (!empty($allValuesForThisElement)) {
+            $response = Http::withToken($token)
                 ->acceptJson()
                 ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", [
-                    'name'         => $elementData['name'],
+                    'name'         => $elementData['name'], // e.g., "yhhbj" or "dress"
                     'required'     => true,
                     'display_type' => 'image',
                     'visibility'   => 'always',
-                    'values'       => $values,
+                    'values'       => $allValuesForThisElement,
                 ]);
+
+            if (!$response->successful()) {
+                Log::error("Failed to push option {$elementData['name']}", [
+                    'body' => $response->body()
+                ]);
+            }
         }
     }
+}
 
     private function deleteAllSallaOptions(string $token, int $sallaProductId): void
     {
