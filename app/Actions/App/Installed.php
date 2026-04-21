@@ -13,9 +13,14 @@ use Illuminate\Support\Facades\Artisan;
  */
 class Installed extends BaseAction
 {
-    public function handle()
+    public function handle(?string $merchant = null)
     {
-        Artisan::call('app:sync-products');
+        $arguments = [];
+        if (!empty($merchant)) {
+            $arguments['--merchant'] = $merchant;
+        }
+
+        Artisan::call('app:sync-products', $arguments);
         // you can do whatever you want
     }
 }

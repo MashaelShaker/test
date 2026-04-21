@@ -34,7 +34,8 @@ class WebhookController extends Controller
     }
 
     if ($event === 'app.installed') {
-        (new \App\Actions\App\Installed())->handle();
+        $merchant = $request->input('merchant') ?? data_get($data, 'merchant');
+        (new \App\Actions\App\Installed())->handle($merchant);
         return response()->json(['success' => true]);
     }
 
