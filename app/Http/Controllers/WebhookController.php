@@ -38,8 +38,22 @@ class WebhookController extends Controller
         if (in_array($event, ['product.variant.updated', 'product.variant.created', 'product.variant.deleted'], true)) {
             $parentId = $data['product_id']
                 ?? $data['product']['id']
+                ?? $data['parent_product_id']
+                ?? $data['parent_id']
                 ?? null;
-            if ($parentId) {
+
+            if (!$parentId) {
+                \Illuminate\Support\Facades\Log::warning('variant webhook: no parent id in payload', [
+                    'event'     => $event,
+                    'data_keys' => is_array($data) ? array_keys($data) : null,
+                    'data'      => $data,
+                ]);
+            } else {
+                \Illuminate\Support\Facades\Log::info('variant webhook → resync parent', [
+                    'event'     => $event,
+                    'parent_id' => $parentId,
+                    'merchant'  => $merchant ?: null,
+                ]);
                 (new \App\Actions\Product\Updated(['id' => $parentId], $merchant))->handle();
             }
             return response()->json(['success' => true]);

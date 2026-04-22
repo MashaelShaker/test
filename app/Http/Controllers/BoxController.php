@@ -25,6 +25,36 @@ class BoxController extends Controller
     }
 
     /**
+     * Read per-option-value rows from a variants_data payload. Handles both the
+     * current {values, combinations} shape and the legacy flat-array shape that
+     * was written before combo-aware sync shipped.
+     */
+    private static function extractVariantValues($raw): array
+    {
+        if (!is_array($raw) || empty($raw)) {
+            return [];
+        }
+        if (array_key_exists('values', $raw) || array_key_exists('combinations', $raw)) {
+            $values = $raw['values'] ?? [];
+            return is_array($values) ? $values : [];
+        }
+        return $raw;
+    }
+
+    /**
+     * Read SKU combinations from a variants_data payload. Returns [] for legacy
+     * rows that predate combo tracking — callers degrade to per-value availability.
+     */
+    private static function extractVariantCombinations($raw): array
+    {
+        if (!is_array($raw) || empty($raw)) {
+            return [];
+        }
+        $combos = $raw['combinations'] ?? [];
+        return is_array($combos) ? $combos : [];
+    }
+
+    /**
      * Decode a data-URL image, persist to storage, return full public URL (APP_URL + /storage/...), or null if invalid/empty.
      * Covers: create with image, update with new image — never returns a value for "no change" or garbage input.
      */
@@ -370,11 +400,11 @@ class BoxController extends Controller
             $product = $products->get($item['id']);
             if (!$product) continue;
 
-            $data = $product->variants_data;
+            $values = self::extractVariantValues($product->variants_data);
 
-            if (!empty($data) && is_array($data)) {
+            if (!empty($values)) {
                 // If the product has variants, add each as a choice
-                foreach ($data as $entry) {
+                foreach ($values as $entry) {
                     $allValuesForThisElement[] = [
                         'name'          => $product->name . ' (' . ($entry['name'] ?? 'Default') . ')',
                         'price'         => 0,
@@ -715,7 +745,7 @@ class BoxController extends Controller
                     'id'           => $element->id,
                     'element_name' => $element->element_name,
                     'products'     => $element->products->map(function ($product) {
-                        $variants = collect($product->variants_data ?? [])->map(fn ($v) => [
+                        $variants = collect(self::extractVariantValues($product->variants_data))->map(fn ($v) => [
                             'id'                 => $v['id'] ?? null,
                             'name'               => $v['name'] ?? null,
                             'option_name'        => $v['option_name'] ?? null,
@@ -723,6 +753,12 @@ class BoxController extends Controller
                             'quantity'           => (int) ($v['quantity'] ?? 0),
                             'unlimited_quantity' => (bool) ($v['unlimited_quantity'] ?? false),
                             'available'          => !empty($v['unlimited_quantity']) || (int) ($v['quantity'] ?? 0) > 0,
+                        ])->values();
+
+                        $combinations = collect(self::extractVariantCombinations($product->variants_data))->map(fn ($c) => [
+                            'option_value_ids'   => array_values(array_map('intval', $c['option_value_ids'] ?? [])),
+                            'quantity'           => (int) ($c['quantity'] ?? 0),
+                            'unlimited_quantity' => (bool) ($c['unlimited_quantity'] ?? false),
                         ])->values();
 
                         return [
@@ -736,6 +772,7 @@ class BoxController extends Controller
                                 ? $variants->contains(fn ($v) => $v['available'])
                                 : (int) ($product->stock_quantity ?? 0) > 0,
                             'variants'       => $variants,
+                            'combinations'   => $combinations,
                         ];
                     })->values(),
                 ];

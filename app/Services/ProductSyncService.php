@@ -96,8 +96,11 @@ class ProductSyncService
     }
 
     /**
-     * Produce the per-variant stock rows we store in products.variants_data.
-     * Full rule tree — see comments inline.
+     * Produce the per-variant stock rows + full SKU combinations stored in
+     * products.variants_data. Shape: ['values' => [...], 'combinations' => [...]].
+     * Combinations let the storefront widget enforce combo-aware availability
+     * (e.g. black+large is out even if both "black" and "large" have stock
+     * somewhere). Full rule tree — see comments inline.
      */
     public function computeVariantsData(array $item): array
     {
@@ -116,31 +119,41 @@ class ProductSyncService
         $ownOptionIds = array_flip($ownOptionValuesOrdered);
 
         // Pass 1: match each SKU to own options via related_option_values
-        // (authoritative when refs are clean). MAX not SUM avoids double-counting
-        // a unit that spans two option dimensions.
+        // (authoritative when refs are clean). SUM per value so a color's
+        // badge reflects total units across all its size combos (black total
+        // = black/small + black/large). Summing across option groups is fine
+        // — each dimension independently totals to product stock. Alongside
+        // the per-value reduction we also record the full SKU as a combination
+        // so the storefront can cross-check availability per-combo.
         $stockByOptionValue     = [];
         $unlimitedByOptionValue = [];
         $matchedOwnIds          = [];
         $unmatchedSkus          = [];
+        $combinations           = [];
         foreach ($item['skus'] ?? [] as $sku) {
             $skuStock     = (int) ($sku['stock_quantity'] ?? 0);
             $skuUnlimited = !empty($sku['unlimited_quantity']);
             $matched      = false;
+            $ownValueIds  = [];
             foreach ($sku['related_option_values'] ?? [] as $valueId) {
                 if (!isset($ownOptionIds[$valueId])) {
                     continue;
                 }
-                $stockByOptionValue[$valueId] = max(
-                    $stockByOptionValue[$valueId] ?? 0,
-                    $skuStock
-                );
+                $stockByOptionValue[$valueId] = ($stockByOptionValue[$valueId] ?? 0) + $skuStock;
                 if ($skuUnlimited) {
                     $unlimitedByOptionValue[$valueId] = true;
                 }
                 $matchedOwnIds[$valueId] = true;
+                $ownValueIds[] = $valueId;
                 $matched = true;
             }
-            if (!$matched) {
+            if ($matched) {
+                $combinations[] = [
+                    'option_value_ids'   => array_values(array_unique($ownValueIds)),
+                    'quantity'           => $skuStock,
+                    'unlimited_quantity' => $skuUnlimited,
+                ];
+            } else {
                 $unmatchedSkus[] = $sku;
             }
         }
@@ -165,7 +178,8 @@ class ProductSyncService
 
         $syncedData = [];
 
-        // Legacy variants shape (rare; some Salla products still expose it)
+        // Legacy variants shape (rare; some Salla products still expose it).
+        // No combinations here — legacy variants don't expose option_value_ids.
         if (!empty($item['variants'])) {
             foreach ($item['variants'] as $variant) {
                 $hasVariantStock = isset($variant['stock_quantity']) || isset($variant['quantity']);
@@ -181,7 +195,7 @@ class ProductSyncService
                         : $productUnlimited,
                 ];
             }
-            return $syncedData;
+            return ['values' => $syncedData, 'combinations' => []];
         }
 
         // Options shape. Per-value fallback:
@@ -214,6 +228,6 @@ class ProductSyncService
             }
         }
 
-        return $syncedData;
+        return ['values' => $syncedData, 'combinations' => $combinations];
     }
 }
