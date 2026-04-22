@@ -24,7 +24,12 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Safety net: webhooks handle real-time product edits, but cron catches
+        // any webhook Salla dropped or that arrived while the app was down.
+        $schedule->command('app:sync-products')
+            ->everyFifteenMinutes()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

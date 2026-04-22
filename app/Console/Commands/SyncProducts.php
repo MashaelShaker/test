@@ -2,11 +2,12 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Box;
 use App\Models\User;
+use App\Services\ProductSyncService;
+use App\Services\SallaAuthService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
-use App\Models\Product;
+use Illuminate\Support\Facades\Log;
 
 class SyncProducts extends Command
 {
@@ -27,18 +28,29 @@ class SyncProducts extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(ProductSyncService $sync)
     {
         $this->info("Starting sync...");
         $totalSynced = 0;
 
-        // we nned to make sure after the app is instlled by 2 stores . all products from both stores should be synced
+        // all products from every authorized store should be synced
         $users = User::whereHas('token')->get();
 
         foreach ($users as $user) {
             $store_id = $user->store_id ?? $user->token->merchant;
-            $token = $user->token->access_token;
-            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100include=variants,options";
+
+            try {
+                $token = app(SallaAuthService::class)->forUser($user)->freshAccessToken();
+            } catch (\Throwable $e) {
+                Log::error('SyncProducts: token refresh failed — store must reauthorize', [
+                    'store_id' => $store_id,
+                    'message'  => $e->getMessage(),
+                ]);
+                $this->warn("Skipping store $store_id — token refresh failed (needs reauthorization)");
+                continue;
+            }
+
+            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100&include=variants,options";
 
             while ($nextPageUrl) {
                 $response = Http::withToken($token)->get($nextPageUrl);
@@ -47,52 +59,9 @@ class SyncProducts extends Command
                     $result = $response->json();
 
                     foreach ($result['data'] as $item) {
-                        if (Box::where('salla_product_id', $item['id'])->exists()) {
-                            continue;
+                        if ($sync->upsertFromSallaItem($item, $store_id) !== null) {
+                            $totalSynced++;
                         }
-
-                        $syncedData = [];
-                        // 1. Check for Variants first
-                        if (!empty($item['variants'])) {
-                            foreach ($item['variants'] as $variant) {
-                                $syncedData[] = [
-                                    'id'    => $variant['id'],
-                                    'name'  => $variant['name'],
-                                    'image' => $variant['image']['url'] ?? $item['main_image'] ?? null,
-                                ];
-                            }
-                        }
-                        // 2. IMPORTANT: If variants are empty, pull from Options
-                        elseif (!empty($item['options'])) {
-                            foreach ($item['options'] as $option) {
-                                // We look inside 'values' for the actual choices (36, 38, 40...)
-                                if (isset($option['values']) && is_array($option['values'])) {
-                                    foreach ($option['values'] as $value) {
-                                        $syncedData[] = [
-                                            'id'    => $value['id'],
-                                            'name'  => $value['name'],
-                                            'image' => $value['image'] ?? $item['main_image'] ?? null,
-                                        ];
-                                    }
-                                }
-                            }
-                        }
-
-                        Product::updateOrCreate(
-                            ['salla_product_id' => $item['id']],
-                            [
-                                'name'           => $item['name'],
-                                'description'    => $item['description'] ?? '',
-                                'price'          => $item['price']['amount'] ?? 0,
-                                'stock_quantity' => $item['quantity'] ?? 0,
-                                'image_url'      => $item['main_image'] ?? '',
-                                'variants_data'  => $syncedData,
-                                'store_id'       => $store_id,
-                            ]
-                        );
-
-
-                        $totalSynced++;
                     }
                     // Move to the next page if it exists
                     $nextPageUrl = $result['pagination']['links']['next'] ?? null;

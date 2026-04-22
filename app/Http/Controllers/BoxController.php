@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Box;
 use App\Models\BoxElement;
 use App\Models\Product;
+use App\Models\User;
+use App\Services\SallaAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +15,15 @@ use Psr\Http\Message\RequestInterface;
 
 class BoxController extends Controller
 {
+    /**
+     * Refresh Salla access token if expired and return a usable one.
+     * Centralized here so every call site gets self-healing auth.
+     */
+    private function sallaToken(User $user): string
+    {
+        return app(SallaAuthService::class)->forUser($user)->freshAccessToken();
+    }
+
     /**
      * Decode a data-URL image, persist to storage, return full public URL (APP_URL + /storage/...), or null if invalid/empty.
      * Covers: create with image, update with new image — never returns a value for "no change" or garbage input.
@@ -367,6 +378,7 @@ class BoxController extends Controller
                     $allValuesForThisElement[] = [
                         'name'          => $product->name . ' (' . ($entry['name'] ?? 'Default') . ')',
                         'price'         => 0,
+                        'quantity'      => $entry['quantity'] ?? 0,
                         'display_value' => $entry['image'] ?? $entry['photo'] ?? $product->image_url,
                     ];
                 }
@@ -375,6 +387,7 @@ class BoxController extends Controller
                 $allValuesForThisElement[] = [
                     'name'          => $product->name,
                     'price'         => 0,
+                    'quantity'      => $product->stock_quantity ?? 0,
                     'display_value' => $product->image_url,
                 ];
             }
@@ -382,15 +395,29 @@ class BoxController extends Controller
 
         // 2. Send ONE request per Box Element containing all products/variants
         if (!empty($allValuesForThisElement)) {
+            $payload = [
+                'name'         => $elementData['name'], // e.g., "yhhbj" or "dress"
+                'required'     => true,
+                'display_type' => 'image',
+                'visibility'   => 'always',
+                'values'       => $allValuesForThisElement,
+            ];
+
+            // TEMP DEBUG: log what we're sending and what Salla returns
+            Log::info('pushOptionsToSalla payload', [
+                'element' => $elementData['name'],
+                'payload' => $payload,
+            ]);
+
             $response = Http::withToken($token)
                 ->acceptJson()
-                ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", [
-                    'name'         => $elementData['name'], // e.g., "yhhbj" or "dress"
-                    'required'     => true,
-                    'display_type' => 'image',
-                    'visibility'   => 'always',
-                    'values'       => $allValuesForThisElement,
-                ]);
+                ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", $payload);
+
+            Log::info('pushOptionsToSalla response', [
+                'element' => $elementData['name'],
+                'status'  => $response->status(),
+                'body'    => $response->json(),
+            ]);
 
             if (!$response->successful()) {
                 Log::error("Failed to push option {$elementData['name']}", [
@@ -430,19 +457,19 @@ class BoxController extends Controller
         ]);
 
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         $imageUrl = $this->storeImageFromDataUrl($validated['image'] ?? null);
 
         $sallaResponse = Http::withToken($token)
             ->acceptJson()
             ->post('https://api.salla.dev/admin/v2/products', [
-                'name'         => $validated['name'],
-                'price'        => $validated['price'],
-                'description'  => $validated['description'] ?? '',
-                'status'       => 'sale',
-                'product_type' => 'product',
-                'quantity'     => 10,
+                'name'               => $validated['name'],
+                'price'              => $validated['price'],
+                'description'        => $validated['description'] ?? '',
+                'status'             => 'sale',
+                'product_type'       => 'product',
+                'unlimited_quantity' => true,
             ]);
 
         if (!$sallaResponse->successful()) {
@@ -540,7 +567,7 @@ class BoxController extends Controller
     {
         $box   = Box::findOrFail($id);
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         // null = لم يُرسل تغيير صورة أو القيمة غير صالحة — نُبقي image_url كما هو
         $newImageUrl = $this->storeImageFromDataUrl($request->input('image'));
@@ -556,24 +583,12 @@ class BoxController extends Controller
 
         $box->save();
 
-        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
-        if ($newImageUrl !== null && $box->salla_product_id) {
-            $sallaImageId = $this->uploadBoxImageToSalla(
-                $token,
-                (int) $box->salla_product_id,
-                $newImageUrl
-            );
-            if ($sallaImageId) {
-                $box->image_id = $sallaImageId;
-                $box->save();
-            }
-        }
-
         if ($newImageUrl !== null && $oldImageUrl !== null && $oldImageUrl !== $newImageUrl) {
             $this->deleteLocalImage($oldImageUrl);
         }
 
-        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
+        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla ثم حذف الصور القديمة هناك.
+        // فشل الرفع لا يوقف تحديث البوكس المحلي.
         if ($newImageUrl !== null && $box->salla_product_id) {
             $existingImageIds = $this->fetchSallaProductImageIds($token, (int) $box->salla_product_id);
 
@@ -655,7 +670,7 @@ class BoxController extends Controller
     {
         $box   = Box::findOrFail($id);
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         if ($box->salla_product_id) {
             Http::withToken($token)
@@ -688,10 +703,49 @@ class BoxController extends Controller
                 ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
         }
 
+        $payload = [
+            'id'               => $box->id,
+            'name'             => $box->name,
+            'price'            => $box->price,
+            'description'      => $box->description,
+            'image_url'        => $box->image_url,
+            'salla_product_id' => $box->salla_product_id,
+            'elements'         => $box->elements->map(function ($element) {
+                return [
+                    'id'           => $element->id,
+                    'element_name' => $element->element_name,
+                    'products'     => $element->products->map(function ($product) {
+                        $variants = collect($product->variants_data ?? [])->map(fn ($v) => [
+                            'id'                 => $v['id'] ?? null,
+                            'name'               => $v['name'] ?? null,
+                            'option_name'        => $v['option_name'] ?? null,
+                            'image'              => $v['image'] ?? $product->image_url,
+                            'quantity'           => (int) ($v['quantity'] ?? 0),
+                            'unlimited_quantity' => (bool) ($v['unlimited_quantity'] ?? false),
+                            'available'          => !empty($v['unlimited_quantity']) || (int) ($v['quantity'] ?? 0) > 0,
+                        ])->values();
+
+                        return [
+                            'id'             => $product->id,
+                            'name'           => $product->name,
+                            'price'          => $product->price,
+                            'image_url'      => $product->image_url,
+                            'stock_quantity' => (int) ($product->stock_quantity ?? 0),
+                            'has_variants'   => $variants->isNotEmpty(),
+                            'available'      => $variants->isNotEmpty()
+                                ? $variants->contains(fn ($v) => $v['available'])
+                                : (int) ($product->stock_quantity ?? 0) > 0,
+                            'variants'       => $variants,
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+        ];
+
         return response()->json([
             'success' => true,
             'message' => 'تم تحميل بيانات الباقة بنجاح',
-            'data' => $box,
+            'data'    => $payload,
         ])
             ->header('Access-Control-Allow-Origin', '*')
             ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
