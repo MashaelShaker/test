@@ -16,9 +16,7 @@
         --bg-light: #fcfcfc; /* Consistent background for the whole workspace */
     }
 
-    html, body {
-        /* Ensures the background covers the full height of the browser */
-        height: 100%;
+    html {
         margin: 0;
         padding: 0;
     }
@@ -27,15 +25,17 @@
         font-family: 'Tajawal', sans-serif;
 
         background-image: url("{{asset('images/Pattern_transparent.png')}}");
+        background-color: var(--bg-light);
         background-repeat: repeat;
         background-attachment: fixed;
         background-size: 800px;
 
         min-height: 100vh; /* Ensures the body takes at least the full viewport height */
-
-        background-color: var(--bg-light);
-        display: flex;
+        width: 100%;
+        matgin: 0;
+        display: block;
     }
+
 
     #app {
         flex: 1; /* Pushes the content to fill the space */
@@ -51,7 +51,7 @@
 
     .boxes-container {
         max-width: 1200px;
-        margin: 24px auto;
+        margin: 94px auto 24px;
         padding: 0 20px;
     }
 
