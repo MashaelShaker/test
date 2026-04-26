@@ -656,19 +656,13 @@ class BoxController extends Controller
                 'success' => false,
                 'message' => 'لا توجد باقة مرتبطة بهذا المنتج',
                 'data' => null,
-            ], 404)
-                ->header('Access-Control-Allow-Origin', '*')
-                ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
+            ], 404);
         }
 
         return response()->json([
             'success' => true,
             'message' => 'تم تحميل بيانات الباقة بنجاح',
             'data' => $box,
-        ])
-            ->header('Access-Control-Allow-Origin', '*')
-            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
+        ]);
     }
 }
