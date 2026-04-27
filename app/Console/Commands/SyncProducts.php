@@ -2,11 +2,12 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Box;
 use App\Models\User;
+use App\Services\ProductSyncService;
+use App\Services\SallaAuthService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
-use App\Models\Product;
+use Illuminate\Support\Facades\Log;
 
 class SyncProducts extends Command
 {
@@ -27,7 +28,7 @@ class SyncProducts extends Command
     /**
      * Execute the console command.
      */
-    public function handle()
+    public function handle(ProductSyncService $sync)
     {
         $this->info("Starting sync...");
         $totalSynced = 0;
@@ -47,16 +48,22 @@ class SyncProducts extends Command
 
         $users = $usersQuery->get();
 
-        if ($users->isEmpty()) {
-            $scope = !empty($merchant) ? " for merchant {$merchant}" : '';
-            $this->warn("No users with tokens found{$scope}.");
-            return self::SUCCESS;
-        }
 
         foreach ($users as $user) {
             $store_id = $user->store_id ?? $user->token->merchant;
-            $token = $user->token->access_token;
-            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100";
+
+            try {
+                $token = app(SallaAuthService::class)->forUser($user)->freshAccessToken();
+            } catch (\Throwable $e) {
+                Log::error('SyncProducts: token refresh failed — store must reauthorize', [
+                    'store_id' => $store_id,
+                    'message'  => $e->getMessage(),
+                ]);
+                $this->warn("Skipping store $store_id — token refresh failed (needs reauthorization)");
+                continue;
+            }
+
+            $nextPageUrl = "https://api.salla.dev/admin/v2/products?per_page=100&include=variants,options";
 
             while ($nextPageUrl) {
                 $response = Http::withToken($token)->get($nextPageUrl);
@@ -65,36 +72,23 @@ class SyncProducts extends Command
                     $result = $response->json();
 
                     foreach ($result['data'] as $item) {
-                        if (Box::where('salla_product_id', $item['id'])->exists()) {
-                            continue;
+                        if ($sync->upsertFromSallaItem($item, $store_id) !== null) {
+                            $totalSynced++;
                         }
-
-                        Product::updateOrCreate(
-                            ['salla_product_id' => $item['id']],
-                            [
-                                'name'           => $item['name'],
-                                'description'    => $item['description'] ?? '',
-                                'price'          => $item['price']['amount'] ?? 0,
-                                'stock_quantity' => $item['quantity'] ?? 0,
-                                'image_url'      => $item['main_image'] ?? '',
-                                'store_id'       => $store_id,
-                            ]
-                        );
-
-
-                        $totalSynced++;
                     }
                     // Move to the next page if it exists
                     $nextPageUrl = $result['pagination']['links']['next'] ?? null;
+                    if ($nextPageUrl && !str_contains($nextPageUrl, 'include=variants')) {
+                    $nextPageUrl .= (str_contains($nextPageUrl, '?') ? '&' : '?') . 'include=variants';
+                }
+
                 } else {
-                    $this->error("Error in fetching: " . $response->body());
+                    $this->error("Error in fetching from store $store_id: " . $response->body());
                     break;
                 }
             }
         }
 
         $this->info("Done! Synced $totalSynced products successfully.");
-
-        return self::SUCCESS;
     }
 }

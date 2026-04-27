@@ -30,9 +30,10 @@ class SallaAuthService
     public function __construct()
     {
         $this->provider = new Salla([
-            'clientId'     => config('services.salla.client_id'), // The client ID assigned to you by Salla
-            'clientSecret' => config('services.salla.client_secret'), // The client password assigned to you by Salla
-'redirectUri'  => $this->isEasyMode() ? null : config('services.salla.redirect'),        ]);
+            'clientId'     => config('services.salla.client_id'),
+            'clientSecret' => config('services.salla.client_secret'),
+            'redirectUri'  => $this->isEasyMode() ? null : config('services.salla.redirect'),
+        ]);
     }
 
     /**
@@ -113,24 +114,17 @@ class SallaAuthService
 
         return $token;
     }
-    /*public function getNewAccessToken()
-{
-    if (!$this->token->hasExpired()) {
-        return new AccessToken($this->token->toArray());
+
+    /**
+     * Ensure the stored access token is valid (refreshing if expired) and return it.
+     * Call this instead of reading $user->token->access_token directly.
+     */
+    public function freshAccessToken(): string
+    {
+        $this->getNewAccessToken();
+
+        return $this->token->fresh()->access_token;
     }
-
-    $token = $this->provider->getAccessToken('refresh_token', [
-        'refresh_token' => $this->token->refresh_token
-    ]);
-
-    $this->token->update([
-        'access_token'  => $token->getToken(),
-        'expires_in'    => $token->getExpires(),
-        'refresh_token' => $token->getRefreshToken()
-    ]);
-
-    return $token;
-}*/
 
     public function request(string $method, string $url, array $options = [])
     {

@@ -25,10 +25,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/boxes/{id}', [BoxController::class, 'show']);
     Route::delete('/boxes/{id}', [BoxController::class, 'destroy']);
     Route::get('/boxes/{id}/edit', [BoxController::class, 'edit']);
-Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
 
     Route::get('/api/boxes', [BoxController::class, 'index']);
-    
+    Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
     Route::post('/api/boxes', [BoxController::class, 'store']);
     Route::put('/api/boxes/{id}', [BoxController::class, 'update']);
 });

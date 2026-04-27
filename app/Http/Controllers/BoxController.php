@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Box;
 use App\Models\BoxElement;
+use App\Models\OauthToken;
 use App\Models\Product;
+use App\Models\User;
+use App\Services\SallaAuthService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -13,6 +16,45 @@ use Psr\Http\Message\RequestInterface;
 
 class BoxController extends Controller
 {
+    /**
+     * Refresh Salla access token if expired and return a usable one.
+     * Centralized here so every call site gets self-healing auth.
+     */
+    private function sallaToken(User $user): string
+    {
+        return app(SallaAuthService::class)->forUser($user)->freshAccessToken();
+    }
+
+    /**
+     * Read per-option-value rows from a variants_data payload. Handles both the
+     * current {values, combinations} shape and the legacy flat-array shape that
+     * was written before combo-aware sync shipped.
+     */
+    private static function extractVariantValues($raw): array
+    {
+        if (!is_array($raw) || empty($raw)) {
+            return [];
+        }
+        if (array_key_exists('values', $raw) || array_key_exists('combinations', $raw)) {
+            $values = $raw['values'] ?? [];
+            return is_array($values) ? $values : [];
+        }
+        return $raw;
+    }
+
+    /**
+     * Read SKU combinations from a variants_data payload. Returns [] for legacy
+     * rows that predate combo tracking — callers degrade to per-value availability.
+     */
+    private static function extractVariantCombinations($raw): array
+    {
+        if (!is_array($raw) || empty($raw)) {
+            return [];
+        }
+        $combos = $raw['combinations'] ?? [];
+        return is_array($combos) ? $combos : [];
+    }
+
     /**
      * Decode a data-URL image, persist to storage, return full public URL (APP_URL + /storage/...), or null if invalid/empty.
      * Covers: create with image, update with new image — never returns a value for "no change" or garbage input.
@@ -164,7 +206,7 @@ class BoxController extends Controller
                 'has_content' => !empty($photoContent),
                 'mime_type'   => $mimeType,
                 'filename'    => $filename,
-                'payload_size'=> $payloadSize,
+                'payload_size' => $payloadSize,
                 'sending'     => 'photo only',
             ]);
 
@@ -346,33 +388,268 @@ class BoxController extends Controller
         }
     }
 
+    /**
+     * Fetch the Box's Salla product options (with values) so details() can hand
+     * the snippet the IDs salla.cart.addItem expects. Returns [] on any failure
+     * so the public endpoint never breaks.
+     */
+    private function fetchSallaProductOptions(Box $box): array
+    {
+        if (!$box->salla_product_id || !$box->store_id) {
+            return [];
+        }
+
+        $token = OauthToken::where('merchant', $box->store_id)->first();
+        $user  = $token ? User::find($token->user_id) : null;
+        if (!$user) {
+            return [];
+        }
+
+        try {
+            $accessToken = app(SallaAuthService::class)->forUser($user)->freshAccessToken();
+        } catch (\Throwable $e) {
+            Log::warning('details() token refresh failed', ['box_id' => $box->id, 'message' => $e->getMessage()]);
+            return [];
+        }
+
+        try {
+            $response = Http::withToken($accessToken)
+                ->acceptJson()
+                ->get("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}");
+        } catch (\Throwable $e) {
+            Log::warning('details() Salla GET threw', ['box_id' => $box->id, 'message' => $e->getMessage()]);
+            return [];
+        }
+
+        if (!$response->successful()) {
+            Log::warning('details() Salla GET unsuccessful', [
+                'box_id' => $box->id,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            return [];
+        }
+
+        $options = $response->json('data.options', []);
+
+        Log::info('details() Salla options snapshot', [
+            'box_id'        => $box->id,
+            'salla_pid'     => $box->salla_product_id,
+            'options_count' => is_array($options) ? count($options) : 0,
+            'options'       => is_array($options) ? array_map(fn($o) => [
+                'id'         => $o['id'] ?? null,
+                'name'       => $o['name'] ?? null,
+                'val_count'  => isset($o['values']) && is_array($o['values']) ? count($o['values']) : 0,
+                'val_names'  => isset($o['values']) && is_array($o['values'])
+                    ? array_map(fn($v) => $v['name'] ?? null, $o['values'])
+                    : [],
+            ], $options) : [],
+        ]);
+
+        return is_array($options) ? $options : [];
+    }
+
+    /**
+     * For one Box element + its matching Salla option, produce the value_map the
+     * snippet uses to translate user picks into salla.cart.addItem option-values.
+     * Names are regenerated with the EXACT same logic pushOptionsToSalla used,
+     * then matched to the live Salla values by name.
+     */
+    private function buildElementValueMap(BoxElement $element, ?array $sallaOption): array
+    {
+        if (!$sallaOption) {
+            Log::info('buildElementValueMap: no sallaOption matched', ['element' => $element->element_name]);
+            return [];
+        }
+
+        $sallaValuesByName = collect($sallaOption['values'] ?? [])->keyBy('name');
+        $expectedNames     = [];
+        $map               = [];
+
+        foreach ($element->products as $product) {
+            $combos    = self::extractVariantCombinations($product->variants_data);
+            $values    = self::extractVariantValues($product->variants_data);
+            $valueById = collect($values)->keyBy('id');
+
+            if (!empty($combos)) {
+                foreach ($combos as $combo) {
+                    $ids   = array_values(array_map('intval', $combo['option_value_ids'] ?? []));
+                    $names = array_filter(array_map(
+                        fn($id) => $valueById[$id]['name'] ?? null,
+                        $ids
+                    ));
+                    $name  = $product->name . ' - ' . implode(' - ', $names);
+                    $expectedNames[] = $name;
+
+                    $sallaValue = $sallaValuesByName->get($name);
+                    if (!$sallaValue) continue;
+
+                    $map[] = [
+                        'salla_value_id'    => (int) $sallaValue['id'],
+                        'source_product_id' => (int) $product->id,
+                        'source_value_ids'  => $ids,
+                        'name'              => $name,
+                        'quantity'          => (int) ($combo['quantity'] ?? 0),
+                    ];
+                }
+                continue;
+            }
+
+            if (!empty($values)) {
+                foreach ($values as $entry) {
+                    $name = $product->name . ' - ' . ($entry['name'] ?? 'Default');
+                    $expectedNames[] = $name;
+                    $sallaValue = $sallaValuesByName->get($name);
+                    if (!$sallaValue) continue;
+
+                    $map[] = [
+                        'salla_value_id'    => (int) $sallaValue['id'],
+                        'source_product_id' => (int) $product->id,
+                        'source_value_ids'  => [(int) ($entry['id'] ?? 0)],
+                        'name'              => $name,
+                        'quantity'          => (int) ($entry['quantity'] ?? 0),
+                    ];
+                }
+                continue;
+            }
+
+            $expectedNames[] = $product->name;
+            $sallaValue = $sallaValuesByName->get($product->name);
+            if ($sallaValue) {
+                $map[] = [
+                    'salla_value_id'    => (int) $sallaValue['id'],
+                    'source_product_id' => (int) $product->id,
+                    'source_value_ids'  => [],
+                    'name'              => $product->name,
+                    'quantity'          => (int) ($product->stock_quantity ?? 0),
+                ];
+            }
+        }
+
+        Log::info('buildElementValueMap result', [
+            'element'         => $element->element_name,
+            'salla_option_id' => $sallaOption['id'] ?? null,
+            'expected_names'  => $expectedNames,
+            'salla_names'     => $sallaValuesByName->keys()->all(),
+            'matched_count'   => count($map),
+        ]);
+
+        return $map;
+    }
+
+    /**
+     * Push each Box element to Salla as a single option whose values are FULL SKU
+     * combinations (e.g. "T-Shirt - Red - Large"). Salla's option model is flat —
+     * one value per cart pick — so by collapsing each combo into one value we get
+     * an exact SKU match at checkout instead of two ambiguous flat picks.
+     */
     private function pushOptionsToSalla(string $token, int $sallaProductId, array $elements): void
     {
         foreach ($elements as $elementData) {
-
             $productIds = array_column($elementData['products'], 'id');
             $products   = Product::whereIn('id', $productIds)->get()->keyBy('id');
 
-            $values = array_map(fn($pid) => [
-                'name'       => $products[$pid]->name ?? "Product $pid",
-                'price'      => 0,
-                'is_default' => false,
-                'image_url'  => $products[$pid]->image_url ?? null,
+            $allValuesForThisElement = [];
 
-                // IMPORTANT FIX ONLY (was 1)
-                'display_value' => $products[$pid]->image_url ?? null
-            ], $productIds);
+            foreach ($elementData['products'] as $item) {
+                $product = $products->get($item['id']);
+                if (!$product) continue;
 
-            Http::withToken($token)
+                $rows = $this->buildSallaValuesForProduct($product);
+                foreach ($rows as $row) {
+                    $allValuesForThisElement[] = $row;
+                }
+            }
+
+            if (empty($allValuesForThisElement)) {
+                continue;
+            }
+
+            // display_type=text avoids Salla's 40-image-per-product cap. The snippet
+            // hides Salla's native picker anyway — only our modal is visible to the
+            // customer, so the values don't need to render as images on Salla's side.
+            $payload = [
+                'name'         => $elementData['name'],
+                'required'     => true,
+                'display_type' => 'text',
+                'visibility'   => 'always',
+                'values'       => $allValuesForThisElement,
+            ];
+
+            Log::info('pushOptionsToSalla payload', [
+                'element' => $elementData['name'],
+                'payload' => $payload,
+            ]);
+
+            $response = Http::withToken($token)
                 ->acceptJson()
-                ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", [
-                    'name'         => $elementData['name'],
-                    'required'     => true,
-                    'display_type' => 'image',
-                    'visibility'   => 'always',
-                    'values'       => $values,
+                ->post("https://api.salla.dev/admin/v2/products/{$sallaProductId}/options", $payload);
+
+            Log::info('pushOptionsToSalla response', [
+                'element' => $elementData['name'],
+                'status'  => $response->status(),
+                'body'    => $response->json(),
+            ]);
+
+            if (!$response->successful()) {
+                Log::error("Failed to push option {$elementData['name']}", [
+                    'body' => $response->body()
                 ]);
+            }
         }
+    }
+
+    /**
+     * Build the per-product list of Salla option-values for pushOptionsToSalla.
+     * Prefers combinations (one value per SKU), falls back to per-value for legacy
+     * single-dim products, and finally a single value for plain products.
+     *
+     * Names produced here MUST stay in lockstep with buildElementValueMap() so the
+     * runtime mapping in details() can re-find the Salla value IDs by name.
+     */
+    private function buildSallaValuesForProduct(Product $product): array
+    {
+        $combos = self::extractVariantCombinations($product->variants_data);
+        $values = self::extractVariantValues($product->variants_data);
+        $valueById = collect($values)->keyBy('id');
+
+        $rows = [];
+
+        if (!empty($combos)) {
+            foreach ($combos as $combo) {
+                $ids   = array_values(array_map('intval', $combo['option_value_ids'] ?? []));
+                $names = array_filter(array_map(
+                    fn($id) => $valueById[$id]['name'] ?? null,
+                    $ids
+                ));
+
+                $rows[] = [
+                    'name'     => $product->name . ' - ' . implode(' - ', $names),
+                    'price'    => 0,
+                    'quantity' => (int) ($combo['quantity'] ?? 0),
+                ];
+            }
+            return $rows;
+        }
+
+        if (!empty($values)) {
+            foreach ($values as $entry) {
+                $rows[] = [
+                    'name'     => $product->name . ' - ' . ($entry['name'] ?? 'Default'),
+                    'price'    => 0,
+                    'quantity' => (int) ($entry['quantity'] ?? 0),
+                ];
+            }
+            return $rows;
+        }
+
+        $rows[] = [
+            'name'     => $product->name,
+            'price'    => 0,
+            'quantity' => (int) ($product->stock_quantity ?? 0),
+        ];
+
+        return $rows;
     }
 
     private function deleteAllSallaOptions(string $token, int $sallaProductId): void
@@ -404,19 +681,19 @@ class BoxController extends Controller
         ]);
 
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         $imageUrl = $this->storeImageFromDataUrl($validated['image'] ?? null);
 
         $sallaResponse = Http::withToken($token)
             ->acceptJson()
             ->post('https://api.salla.dev/admin/v2/products', [
-                'name'         => $validated['name'],
-                'price'        => $validated['price'],
-                'description'  => $validated['description'] ?? '',
-                'status'       => 'sale',
-                'product_type' => 'product',
-                'quantity'     => 10,
+                'name'               => $validated['name'],
+                'price'              => $validated['price'],
+                'description'        => $validated['description'] ?? '',
+                'status'             => 'sale',
+                'product_type'       => 'product',
+                'unlimited_quantity' => true,
             ]);
 
         if (!$sallaResponse->successful()) {
@@ -514,7 +791,7 @@ class BoxController extends Controller
     {
         $box   = Box::findOrFail($id);
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         // null = لم يُرسل تغيير صورة أو القيمة غير صالحة — نُبقي image_url كما هو
         $newImageUrl = $this->storeImageFromDataUrl($request->input('image'));
@@ -530,24 +807,12 @@ class BoxController extends Controller
 
         $box->save();
 
-        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
-        if ($newImageUrl !== null && $box->salla_product_id) {
-            $sallaImageId = $this->uploadBoxImageToSalla(
-                $token,
-                (int) $box->salla_product_id,
-                $newImageUrl
-            );
-            if ($sallaImageId) {
-                $box->image_id = $sallaImageId;
-                $box->save();
-            }
-        }
-
         if ($newImageUrl !== null && $oldImageUrl !== null && $oldImageUrl !== $newImageUrl) {
             $this->deleteLocalImage($oldImageUrl);
         }
 
-        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla. فشل الرفع لا يوقف تحديث البوكس المحلي.
+        // عند استبدال الصورة فقط: رفع الملف الجديد إلى Salla ثم حذف الصور القديمة هناك.
+        // فشل الرفع لا يوقف تحديث البوكس المحلي.
         if ($newImageUrl !== null && $box->salla_product_id) {
             $existingImageIds = $this->fetchSallaProductImageIds($token, (int) $box->salla_product_id);
 
@@ -629,7 +894,7 @@ class BoxController extends Controller
     {
         $box   = Box::findOrFail($id);
         $user  = auth()->user();
-        $token = $user->token->access_token;
+        $token = $this->sallaToken($user);
 
         if ($box->salla_product_id) {
             Http::withToken($token)
@@ -659,10 +924,65 @@ class BoxController extends Controller
             ], 404);
         }
 
+        // Pull the Box product's options/values from Salla so we can hand the
+        // snippet the IDs needed for salla.cart.addItem. Failure is non-fatal —
+        // the modal still renders, the cart submit just gets disabled.
+        $sallaOptions = $this->fetchSallaProductOptions($box);
+
+        $payload = [
+            'id'               => $box->id,
+            'name'             => $box->name,
+            'price'            => $box->price,
+            'description'      => $box->description,
+            'image_url'        => $box->image_url,
+            'salla_product_id' => $box->salla_product_id,
+            'elements'         => $box->elements->map(function ($element) use ($sallaOptions) {
+                $sallaOption = collect($sallaOptions)->firstWhere('name', $element->element_name);
+
+                return [
+                    'id'              => $element->id,
+                    'element_name'    => $element->element_name,
+                    'salla_option_id' => $sallaOption['id'] ?? null,
+                    'value_map'       => $this->buildElementValueMap($element, $sallaOption),
+                    'products'        => $element->products->map(function ($product) {
+                        $variants = collect(self::extractVariantValues($product->variants_data))->map(fn($v) => [
+                            'id'                 => $v['id'] ?? null,
+                            'name'               => $v['name'] ?? null,
+                            'option_name'        => $v['option_name'] ?? null,
+                            'image'              => $v['image'] ?? $product->image_url,
+                            'quantity'           => (int) ($v['quantity'] ?? 0),
+                            'unlimited_quantity' => (bool) ($v['unlimited_quantity'] ?? false),
+                            'available'          => !empty($v['unlimited_quantity']) || (int) ($v['quantity'] ?? 0) > 0,
+                        ])->values();
+
+                        $combinations = collect(self::extractVariantCombinations($product->variants_data))->map(fn($c) => [
+                            'option_value_ids'   => array_values(array_map('intval', $c['option_value_ids'] ?? [])),
+                            'quantity'           => (int) ($c['quantity'] ?? 0),
+                            'unlimited_quantity' => (bool) ($c['unlimited_quantity'] ?? false),
+                        ])->values();
+
+                        return [
+                            'id'             => $product->id,
+                            'name'           => $product->name,
+                            'price'          => $product->price,
+                            'image_url'      => $product->image_url,
+                            'stock_quantity' => (int) ($product->stock_quantity ?? 0),
+                            'has_variants'   => $variants->isNotEmpty(),
+                            'available'      => $variants->isNotEmpty()
+                                ? $variants->contains(fn($v) => $v['available'])
+                                : (int) ($product->stock_quantity ?? 0) > 0,
+                            'variants'       => $variants,
+                            'combinations'   => $combinations,
+                        ];
+                    })->values(),
+                ];
+            })->values(),
+        ];
+
         return response()->json([
             'success' => true,
             'message' => 'تم تحميل بيانات الباقة بنجاح',
-            'data' => $box,
+            'data'    => $payload,
         ]);
     }
 }
