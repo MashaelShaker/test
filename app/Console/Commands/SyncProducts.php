@@ -16,7 +16,7 @@ class SyncProducts extends Command
      *
      * @var string
      */
-    protected $signature = 'app:sync-products';
+    protected $signature = 'app:sync-products {--merchant= : Sync only this store merchant id}';
 
     /**
      * The console command description.
@@ -32,9 +32,22 @@ class SyncProducts extends Command
     {
         $this->info("Starting sync...");
         $totalSynced = 0;
+        $merchant = $this->option('merchant');
 
-        // all products from every authorized store should be synced
-        $users = User::whereHas('token')->get();
+        // we nned to make sure after the app is instlled by 2 stores . all products from both stores should be synced
+        $usersQuery = User::whereHas('token');
+
+        if (!empty($merchant)) {
+            $usersQuery->where(function ($query) use ($merchant) {
+                $query->where('store_id', $merchant)
+                    ->orWhereHas('token', function ($tokenQuery) use ($merchant) {
+                        $tokenQuery->where('merchant', $merchant);
+                    });
+            });
+        }
+
+        $users = $usersQuery->get();
+
 
         foreach ($users as $user) {
             $store_id = $user->store_id ?? $user->token->merchant;

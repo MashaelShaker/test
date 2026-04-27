@@ -64,10 +64,11 @@ class WebhookController extends Controller
             return response()->json(['success' => true]);
         }
 
-        if ($event === 'app.installed') {
-            (new \App\Actions\App\Installed())->handle();
-            return response()->json(['success' => true]);
-        }
+    if ($event === 'app.installed') {
+        $merchant = $request->input('merchant') ?? data_get($data, 'merchant');
+        (new \App\Actions\App\Installed())->handle($merchant);
+        return response()->json(['success' => true]);
+    }
 
         return response()->json(['success' => true]);
     }

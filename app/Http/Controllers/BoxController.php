@@ -921,10 +921,7 @@ class BoxController extends Controller
                 'success' => false,
                 'message' => 'لا توجد باقة مرتبطة بهذا المنتج',
                 'data' => null,
-            ], 404)
-                ->header('Access-Control-Allow-Origin', '*')
-                ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-                ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
+            ], 404);
         }
 
         // Pull the Box product's options/values from Salla so we can hand the
@@ -986,9 +983,6 @@ class BoxController extends Controller
             'success' => true,
             'message' => 'تم تحميل بيانات الباقة بنجاح',
             'data'    => $payload,
-        ])
-            ->header('Access-Control-Allow-Origin', '*')
-            ->header('Access-Control-Allow-Methods', 'GET, OPTIONS')
-            ->header('Access-Control-Allow-Headers', 'Content-Type, Accept, Authorization, X-Requested-With, ngrok-skip-browser-warning');
+        ]);
     }
 }
