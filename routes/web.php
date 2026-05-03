@@ -8,8 +8,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     if (auth()->check()) return redirect('/boxes');
-    return redirect()->route('oauth.redirect');
-});
+    return view('landing');
+})->name('landing');
 
 Auth::routes();
 
