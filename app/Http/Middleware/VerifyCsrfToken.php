@@ -12,6 +12,9 @@ class VerifyCsrfToken extends Middleware
      * @var array
      */
     protected $except = [
-        //
+        '/oauth/callback',
+        'api/webhook',//telling laravel its ok to let requests from this api in
+        '/api/boxes',
+    '/api/boxes/*',
     ];
 }

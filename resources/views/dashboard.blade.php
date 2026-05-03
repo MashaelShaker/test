@@ -1,107 +1,104 @@
-@extends('layouts.app')
-
+@extends('app')
 @section('content')
-    @if (!auth()->user()->token)
-        <div class="py-12">
-            <div class="max-w-7xl mx-auto sm:px-6 lg:px-8">
-                <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
-                    <div class="p-6 bg-white border-b border-gray-200">
-                        @if (session('status'))
-                            <div class="alert alert-success" role="alert">
-                                {{ session('status') }}
+    <div class="container"  dir="rtl">
+        <!-- المحتوى الرئيسي -->
+        <div class="main-content">
+            <!-- معلومات الباقة الأساسية -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="s-icon sicon-box-bankers" dir="rtl"></i> معلومات الباقة</h3>
+                </div>
+                <div class="card-body">
+                    <!-- رفع صورة الباقة -->
+                    <div class="form-group" dir="rtl" style="text-align: right;">
+                        <label class="form-label">صورة الباقة</label>
+                        <div class="upload-area" id="upload-area" onclick="document.getElementById('package-image-input').click()">
+                            <div class="upload-content">
+                                <div class="upload-icon">
+                                    <i class="s-icon sicon-image" style="font-size: 48px; color: var(--text-light);"></i>
+                                </div>
+                                <h4>اضغط لرفع صورة الباقة</h4>
+                                <p>PNG, JPG أو GIF (الحد الأقصى 2MB)</p>
                             </div>
-                        @endif
-
-                        <div>You don't have a token yet, you can start the Authorize from Salla</div>
-                        <div class="mt-4">
-                            <a href="{{ route('oauth.redirect') }}"
-                               class="bg-transparent hover:bg-blue-500 text-blue-700 font-semibold hover:text-white py-2 px-4 border border-blue-500 hover:border-transparent rounded">Get
-                                Access Token</a>
                         </div>
+                        <input type="file" id="package-image-input" accept="image/*" style="display: none;" onchange="handlePackageImageUpload(event)">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="package-name" style="text-align: right;">اسم الباقة</label>
+                        <input type="text" id="package-name" class="form-input" style="text-align: right;" placeholder="مثال: باقة العناية الشاملة" value="{{ $box->name ?? '' }}" oninput="updatePreview()">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="package-price" style="text-align: right;">سعر الباقة (﷼)</label>
+                        <input type="number" id="package-price" class="form-input" style="text-align: right;" placeholder="0.00" step="0.01" min="0" value="{{ $box->price ?? '' }}" oninput="updatePreview()">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="package-description" dir="rtl" style="text-align: right;">وصف الباقة (اختياري)</label>
+                        <textarea id="package-description" class="form-textarea" placeholder="أضف وصفاً للباقة..." dir="rtl"style="text-align: right;">{{ $box->description ?? '' }}</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="salla-url" style="text-align: right;"></label>
+                        <input
+                            type="hidden"
+                            id="salla-url"
+                            class="form-input"
+                            style="text-align: right;"
+                            placeholder="https://demostore.salla.sa/dev-gvzumy3zn3luyfpd/box-test/p"
+                        >
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- منتجات الباقة -->
+            <div class="card">
+                <div class="card-header">
+                    <h3><i class="s-icon sicon-list"></i> منتجات الباقة</h3>
+                    <button class="btn btn-primary" onclick="addNewElement()">
+                        <i class="s-icon sicon-plus"></i>
+                        إضافة منتج
+                    </button>
+                </div>
+                <div class="card-body" id="elements-container">
+                    <div class="empty-state-wrapper">
+                        <i class="s-icon sicon-inbox" class="empty-state-icon"></i>
+                        <p>لم يتم إضافة أي منتجات بعد</p>
+                        <p style="font-size: 12px; margin-top: 4px;">ابدأ بإضافة منتج جديد للباقة</p>
                     </div>
                 </div>
             </div>
         </div>
-    @else
-        @php /** @var \Salla\OAuth2\Client\Provider\SallaUser $store **/ @endphp
-        <div class="container mx-auto my-1">
-            <div class="md:flex no-wrap md:-mx-2 ">
-                <!-- Left Side -->
-                <div class="w-full md:w-3/12 md:mx-2">
 
-                    <div class="card text-center shadow-2xl">
-                        <figure class="">
-                            <img src="{{ $store->getStoreAvatar() }}" class="rounded-xl">
-                        </figure>
-                        <div class="card-body">
-                            <h2 class="card-title">
-                                <a href="https://salla.sa/{{ $store->getStoreUsername() }}"
-                                   class="mb-0 font-weight-bold">{{ $store->getName() }}
-                                    ({{ ucfirst($store->getStorePlan()) }})</a>
-                            </h2>
-                            <ul class="text-left">
-                                <li>Name: {{ $store->getStoreUsername() }}</li>
-                                <li>Store ID: {{ $store->getStoreId() }}</li>
-                                <li>Owner ID: {{ $store->getStoreOwnerID() }}</li>
-                                <li>Email: {{ $store->getEmail() }}</li>
-                                <li>Status: {{ $store->getStoreStatus() }}</li>
-                            </ul>
-                            <div class="justify-center card-actions">
-                                <a href="https://salla.sa/{{ $store->getStoreUsername() }}"
-                                   class="btn btn-outline btn-accent">Visit Store</a>
-                            </div>
-                        </div>
-                    </div>
+        <!-- الشريط الجانبي -->
+        <div class="sidebar">
+            <div class="preview-card">
+                <div class="preview-header">
+                    <div class="preview-label"><i class="s-icon sicon-eye"></i> معاينة الباقة</div>
+                    <img id="preview-package-image" class="preview-package-image" alt="صورة الباقة">
+                    <div class="preview-title" id="preview-title">اسم الباقة</div>
+                    <div class="preview-price" id="preview-price">﷼ 0.00</div>
                 </div>
-                <!-- Right Side -->
-                <div class="w-full md:w-9/12 mx-2 h-64">
-                    <div class="overflow-x-auto card">
-                        <table class="table w-full table-borderless">
-                            <thead>
-                            <tr>
-                                <th>Product</th>
-                                <th>Price</th>
-                                <th>Status</th>
-                                <th></th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            @foreach ($products as $product)
-                                <tr>
-                                    <td>
-                                        <div class="flex items-center space-x-3">
-                                            <div class="avatar">
-                                                <div class="w-12 h-12 mask mask-squircle">
-                                                    <img src="{{ $product['images'][0]['url'] }}">
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div class="font-bold">
-                                                    {{ $product['name'] }}
-                                                </div>
-                                                <div class="text-sm opacity-50">
-                                                    SKU: {{ $product['sku'] }}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        {{ $product['price']['amount'] }} {{  $product['price']['currency'] }}
-                                    </td>
-                                    <td>{{ ucfirst($product['status']) }}</td>
-                                    <th>
-                                        <a href="{{ $product['urls']['admin'] }}"
-                                           class="btn btn-ghost btn-xs">Dashboard</a>
-                                        <a href="{{ $product['urls']['customer'] }}"
-                                           class="btn btn-ghost btn-xs">Details</a>
-                                    </th>
-                                </tr>
-                            @endforeach
-                            </tbody>
-                        </table>
+                <div class="preview-elements" id="preview-elements">
+                    <div style="text-align: center; color: var(--text-light); padding: 20px; font-size: 12px;">
+                        قم بإضافة منتجات للباقة لمشاهدة المعاينة
                     </div>
                 </div>
             </div>
         </div>
-    @endif
-@endsection
+    </div>
+
+    <!-- التذييل الثابت -->
+    <div class="fixed-footer">
+        <button class="btn btn-secondary" onclick="previewPackage()">
+            <i class="s-icon sicon-eye"></i>
+            معاينة كاملة
+        </button>
+        <button class="btn btn-primary" onclick="savePackage()">
+            <i class="s-icon sicon-save"></i>
+            حفظ الباقة
+        </button>
+    </div>
+

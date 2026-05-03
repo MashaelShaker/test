@@ -3,18 +3,33 @@
 namespace App\Actions\Product;
 
 use App\Actions\BaseAction;
+use App\Models\Box;
+use App\Models\Product;
 
-/**
- * @property string merchant example "1029864349"
- * @property string created_at example "Wed Jun 30 2021 12:16:25 GMT+030"
- * @property string event example "product.created"
- * @property array data @see
- *     https://docs.salla.dev/docs/merchent/openapi.json/components/schemas/ProductsWebhookResponse
- */
 class Created extends BaseAction
 {
+    protected $data;
+
+    public function __construct(array $data)
+    {
+        $this->data = $data;
+    }
+
     public function handle()
     {
-        // you can do whatever you want
+        if (Box::where('salla_product_id', $this->data['id'])->exists()) {
+            return null;
+        }
+
+        return Product::updateOrCreate(
+            ['salla_product_id' => $this->data['id']],
+            [
+                'name'           => $this->data['name'] ?? '',
+                'description'    => $this->data['description'] ?? '',
+                'price'          => $this->data['price']['amount'] ?? 0,
+                'stock_quantity' => $this->data['quantity'] ?? 0,
+                'image_url'      => $this->data['main_image'] ?? '',
+            ]
+        );
     }
 }

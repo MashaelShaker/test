@@ -3,18 +3,27 @@
 namespace App\Actions\Product;
 
 use App\Actions\BaseAction;
+use App\Models\Box;
+use App\Models\Product;
 
-/**
- * @property string merchant example "1029864349"
- * @property string created_at example "Wed Jun 30 2021 12:16:25 GMT+030"
- * @property string event example "product.deleted"
- * @property array data @see
- *     https://docs.salla.dev/docs/merchent/openapi.json/components/schemas/ProductsWebhookResponse
- */
 class Deleted extends BaseAction
 {
+    protected $data;
+
+    public function __construct(array $data)
+    {
+        $this->data = $data;
+    }
+
     public function handle()
     {
-        // you can do whatever you want
+        $sallaProductId = $this->data['id'];
+
+        $box = Box::where('salla_product_id', $sallaProductId)->first();
+        if ($box) {
+            return $box->delete();
+        }
+
+        return Product::where('salla_product_id', $sallaProductId)->delete();
     }
 }

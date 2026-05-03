@@ -1,20 +1,44 @@
 <?php
-
 namespace App\Actions\Product;
 
 use App\Actions\BaseAction;
+use App\Models\Box;
+use App\Models\Product;
 
-/**
- * @property string merchant example "1029864349"
- * @property string created_at example "Wed Jun 30 2021 12:16:25 GMT+030"
- * @property string event example "product.updated"
- * @property array data @see
- *     https://docs.salla.dev/docs/merchent/openapi.json/components/schemas/ProductsWebhookResponse
- */
 class Updated extends BaseAction
 {
+    protected $data;
+
+    public function __construct(array $data)
+    {
+        $this->data = $data;
+    }
+
     public function handle()
     {
-        // you can do whatever you want
+        $sallaProductId = $this->data['id'];
+
+        $box = Box::where('salla_product_id', $sallaProductId)->first();
+        if ($box) {
+            $box->update([
+                'name'        => $this->data['name'] ?? $box->name,
+                'description' => $this->data['description'] ?? $box->description,
+                'price'       => $this->data['price']['amount'] ?? $box->price,
+                'image_url'   => $this->data['main_image'] ?? $box->image_url,
+            ]);
+
+            return $box;
+        }
+
+        return Product::updateOrCreate(
+            ['salla_product_id' => $sallaProductId],
+            [
+                'name'           => $this->data['name'] ?? '',
+                'description'    => $this->data['description'] ?? '',
+                'price'          => $this->data['price']['amount'] ?? 0,
+                'stock_quantity' => $this->data['quantity'] ?? 0,
+                'image_url'      => $this->data['main_image'] ?? '',
+            ]
+        );
     }
 }
