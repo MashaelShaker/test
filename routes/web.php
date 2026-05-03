@@ -1,32 +1,34 @@
 <?php
-
+use App\Http\Controllers\BoxController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\OAuthController;
+use App\Http\Controllers\Api\ProductController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
-/*
-|--------------------------------------------------------------------------
-| Web Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register web routes for your application. These
-| routes are loaded by the RouteServiceProvider within a group which
-| contains the "web" middleware group. Now create something great!
-|
-*/
-
 Route::get('/', function () {
-    return view('welcome');
-})->name('welcome');
-
-Route::get('/dashboard', DashboardController::class)->middleware(['auth'])->name('dashboard');
+    if (auth()->check()) return redirect('/boxes');
+    return redirect()->route('oauth.redirect');
+});
 
 Auth::routes();
 
+Route::get('/oauth/redirect', [OAuthController::class, 'redirect'])->name('oauth.redirect');
+Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth.callback');
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-// Salla Auth OAuth routes
-Route::group(['middleware' => 'auth'], function () {
-    Route::get('/oauth/redirect', [OAuthController::class, 'redirect'])->name('oauth.redirect');
-    Route::get('/oauth/callback', [OAuthController::class, 'callback'])->name('oauth.callback');
+    Route::get('/api/products', [ProductController::class, 'index']);
+    Route::get('/api/products/{id}', [ProductController::class, 'show']);
+
+    Route::get('/boxes', [BoxController::class, 'index']);
+    Route::get('/boxes/{id}', [BoxController::class, 'show']);
+    Route::delete('/boxes/{id}', [BoxController::class, 'destroy']);
+    Route::get('/boxes/{id}/edit', [BoxController::class, 'edit']);
+Route::get('/api/boxes/{id}', [BoxController::class, 'show']);
+
+    Route::get('/api/boxes', [BoxController::class, 'index']);
+    
+    Route::post('/api/boxes', [BoxController::class, 'store']);
+    Route::put('/api/boxes/{id}', [BoxController::class, 'update']);
 });

@@ -32,8 +32,7 @@ class SallaAuthService
         $this->provider = new Salla([
             'clientId'     => config('services.salla.client_id'), // The client ID assigned to you by Salla
             'clientSecret' => config('services.salla.client_secret'), // The client password assigned to you by Salla
-            'redirectUri'  => $this->isEasyMode() ? null : route('oauth.callback'), // the url for current page in your service
-        ]);
+'redirectUri'  => $this->isEasyMode() ? null : config('services.salla.redirect'),        ]);
     }
 
     /**
@@ -96,7 +95,7 @@ class SallaAuthService
      */
     public function getNewAccessToken()
     {
-        if ($this->token->hasExpired()) {
+        if (!$this->token->hasExpired()) {
             return new AccessToken($this->token->toArray());
         }
 
@@ -114,6 +113,24 @@ class SallaAuthService
 
         return $token;
     }
+    /*public function getNewAccessToken()
+{
+    if (!$this->token->hasExpired()) {
+        return new AccessToken($this->token->toArray());
+    }
+
+    $token = $this->provider->getAccessToken('refresh_token', [
+        'refresh_token' => $this->token->refresh_token
+    ]);
+
+    $this->token->update([
+        'access_token'  => $token->getToken(),
+        'expires_in'    => $token->getExpires(),
+        'refresh_token' => $token->getRefreshToken()
+    ]);
+
+    return $token;
+}*/
 
     public function request(string $method, string $url, array $options = [])
     {
