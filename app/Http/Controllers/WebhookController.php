@@ -1,11 +1,11 @@
 <?php
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Http\Requests\WebhookRequest;
 
 class WebhookController extends Controller
 {
-    public function handle(Request $request)
+    public function handle(WebhookRequest $request)
     {
         $event    = $request->input('event');
         $data     = $request->input('data');
@@ -56,6 +56,11 @@ class WebhookController extends Controller
                 ]);
                 (new \App\Actions\Product\Updated(['id' => $parentId], $merchant))->handle();
             }
+            return response()->json(['success' => true]);
+        }
+
+        if ($event === 'order.created') {
+            (new \App\Actions\Order\Created($data, $merchant))->handle();
             return response()->json(['success' => true]);
         }
 

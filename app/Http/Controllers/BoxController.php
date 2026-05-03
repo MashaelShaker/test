@@ -56,6 +56,24 @@ class BoxController extends Controller
     }
 
     /**
+     * True when every value belongs to the same option group (e.g., size only).
+     * Single-dim products often arrive with partial/empty `combinations` even
+     * though every value is its own SKU — for those, prefer the per-value branch
+     * over the combos branch so all SKUs reach Salla.
+     */
+    private static function isSingleOptionDimension(array $values): bool
+    {
+        if (empty($values)) {
+            return false;
+        }
+        $names = [];
+        foreach ($values as $v) {
+            $names[(string) ($v['option_name'] ?? '__default__')] = true;
+        }
+        return count($names) <= 1;
+    }
+
+    /**
      * Decode a data-URL image, persist to storage, return full public URL (APP_URL + /storage/...), or null if invalid/empty.
      * Covers: create with image, update with new image — never returns a value for "no change" or garbage input.
      */
@@ -471,7 +489,7 @@ class BoxController extends Controller
             $values    = self::extractVariantValues($product->variants_data);
             $valueById = collect($values)->keyBy('id');
 
-            if (!empty($combos)) {
+            if (!empty($combos) && !self::isSingleOptionDimension($values)) {
                 foreach ($combos as $combo) {
                     $ids   = array_values(array_map('intval', $combo['option_value_ids'] ?? []));
                     $names = array_filter(array_map(
@@ -615,7 +633,7 @@ class BoxController extends Controller
 
         $rows = [];
 
-        if (!empty($combos)) {
+        if (!empty($combos) && !self::isSingleOptionDimension($values)) {
             foreach ($combos as $combo) {
                 $ids   = array_values(array_map('intval', $combo['option_value_ids'] ?? []));
                 $names = array_filter(array_map(
@@ -694,6 +712,7 @@ class BoxController extends Controller
                 'status'             => 'sale',
                 'product_type'       => 'product',
                 'unlimited_quantity' => true,
+                'enable_note'        => true,
             ]);
 
         if (!$sallaResponse->successful()) {
@@ -716,7 +735,11 @@ class BoxController extends Controller
             return response()->json(['success' => false, 'message' => 'لم يتم جلب Salla Product ID', 'debug' => $data], 422);
         }
 
-        $this->pushOptionsToSalla($token, $salla_product_id, $validated['elements']);
+        // TEMP (notes-only flow): Salla options are disabled so the box product
+        // can hold >100 logical SKUs. Variant picks travel as a cart-item note
+        // from the storefront snippet. Re-enable when ready to re-introduce
+        // options-based variant tracking.
+        // $this->pushOptionsToSalla($token, $salla_product_id, $validated['elements']);
 
         $box = Box::create([
             'name'             => $validated['name'],
@@ -851,12 +874,17 @@ class BoxController extends Controller
             Http::withToken($token)
                 ->acceptJson()
                 ->put("https://api.salla.dev/admin/v2/products/{$box->salla_product_id}", [
-                    'name'        => $request->name,
-                    'price'       => $request->price,
-                    'description' => $request->description ?? '',
+                    'name'            => $request->name,
+                    'price'           => $request->price,
+                    'description'     => $request->description ?? '',
+                    'enable_note'     => true,
                 ]);
         }
 
+        // TEMP (notes-only flow): clear any pre-existing Salla options for this
+        // product so the cap doesn't trip, then skip the re-push. Variant picks
+        // arrive as a cart-item note from the storefront snippet. Re-enable the
+        // pushOptionsToSalla call when restoring options-based tracking.
         if ($box->salla_product_id && $request->has('elements')) {
 
             $getRes = Http::withToken($token)
@@ -875,12 +903,12 @@ class BoxController extends Controller
                 }
             }
 
-            try {
-                $this->pushOptionsToSalla($token, $box->salla_product_id, $request->elements);
-                Log::info('Options pushed successfully');
-            } catch (\Exception $e) {
-                Log::error('Salla options sync failed: ' . $e->getMessage());
-            }
+            // try {
+            //     $this->pushOptionsToSalla($token, $box->salla_product_id, $request->elements);
+            //     Log::info('Options pushed successfully');
+            // } catch (\Exception $e) {
+            //     Log::error('Salla options sync failed: ' . $e->getMessage());
+            // }
         }
 
         return response()->json([
@@ -985,4 +1013,6 @@ class BoxController extends Controller
             'data'    => $payload,
         ]);
     }
+
 }
+

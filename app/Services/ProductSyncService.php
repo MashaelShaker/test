@@ -157,6 +157,23 @@ class ProductSyncService
                 $unmatchedSkus[] = $sku;
             }
         }
+// Evidence capture: log the raw Salla payload whenever a SKU points at
+// option-value IDs that don't belong to this product. Used to confirm
+// whether the orphan refs are a sandbox quirk or a real Salla bug.
+if (!empty($unmatchedSkus)) {
+    Log::warning('Salla SKU orphan option-value refs detected', [
+        'product_id'           => $item['id'] ?? null,
+        'product_name'         => $item['name'] ?? null,
+        'own_option_value_ids' => $ownOptionValuesOrdered,
+        'orphan_skus'          => array_map(fn ($s) => [
+            'id'                    => $s['id'] ?? null,
+            'sku'                   => $s['sku'] ?? null,
+            'stock_quantity'        => $s['stock_quantity'] ?? null,
+            'related_option_values' => $s['related_option_values'] ?? [],
+        ], $unmatchedSkus),
+        'raw_item'             => $item,
+    ]);
+}
 
         // Pass 2: positionally assign orphaned SKUs to still-unmatched own
         // option values — ONLY when counts line up exactly. Mismatched counts
@@ -231,3 +248,4 @@ class ProductSyncService
         return ['values' => $syncedData, 'combinations' => $combinations];
     }
 }
+
